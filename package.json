@@ -18,7 +18,11 @@
     "deploy:prod": "sam deploy --config-env prod",
     "package": "sam build",
     "local": "sam local start-api",
-    "validate": "sam validate"
+    "validate": "sam validate",
+    "db:test": "npm run test -- tests/config/",
+    "db:connect": "ts-node -e \"import('./src/config/database').then(db => db.default.testConnection())\"",
+    "db:create": "ts-node scripts/create-database.ts",
+    "db:migrate": "ts-node scripts/migrate-database.ts"
   },
   "keywords": [
     "books",
