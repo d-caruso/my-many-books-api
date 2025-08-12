@@ -39,7 +39,13 @@
     "test:data-transformer": "jest tests/services/dataTransformer.test.ts",
     "isbn:lookup": "ts-node -e \"import('./src/services/isbnService').then(s => s.isbnService.lookupBook(process.argv[2]).then(console.log))\"",
     "isbn:search": "ts-node -e \"import('./src/services/isbnService').then(s => s.isbnService.searchByTitle(process.argv[2]).then(console.log))\"",
-    "isbn:health": "ts-node -e \"import('./src/services/isbnService').then(s => s.isbnService.checkServiceHealth().then(console.log))\""
+    "isbn:health": "ts-node -e \"import('./src/services/isbnService').then(s => s.isbnService.checkServiceHealth().then(console.log))\"",
+    "test:circuit-breaker": "jest tests/utils/circuitBreaker.test.ts",
+    "test:retry-policy": "jest tests/utils/retryPolicy.test.ts",
+    "test:fallback": "jest tests/services/fallbackService.test.ts",
+    "isbn:resilience": "ts-node -e \"import('./src/services/isbnService').then(s => s.isbnService.getResilienceStats().then(console.log))\"",
+    "isbn:fallback": "ts-node -e \"import('./src/services/isbnService').then(s => s.isbnService.addFallbackBook(process.argv[2], process.argv[3]))\"",
+    "isbn:reset": "ts-node -e \"import('./src/services/isbnService').then(s => s.isbnService.resetResilience())\""
   },
   "keywords": [
     "books",

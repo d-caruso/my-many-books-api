@@ -4,6 +4,9 @@
 
 import { OpenLibraryClient, openLibraryClient } from './openLibraryClient';
 import { DataTransformer } from './dataTransformer';
+import { FallbackService } from './fallbackService';
+import { CircuitBreaker, CircuitBreakerConfig } from '@/utils/circuitBreaker';
+import { RetryPolicy, RetryConfig } from '@/utils/retryPolicy';
 import { validateIsbn, normalizeIsbn } from '@/utils/isbn';
 import { 
   IsbnLookupResult, 
@@ -13,9 +16,14 @@ import {
 
 export interface IsbnServiceConfig {
   enableCache?: boolean;
-  cacheExpiration?: number; // milliseconds
+  cacheExpiration?: number;
   maxCacheSize?: number;
   openLibraryClient?: OpenLibraryClient;
+  enableFallback?: boolean;
+  enableCircuitBreaker?: boolean;
+  enableRetry?: boolean;
+  circuitBreakerConfig?: Partial<CircuitBreakerConfig>;
+  retryConfig?: Partial<RetryConfig>;
 }
 
 interface CacheEntry {
@@ -27,17 +35,45 @@ export class IsbnService {
   private client: OpenLibraryClient;
   private cache: Map<string, CacheEntry>;
   private config: Required<IsbnServiceConfig>;
+  private fallbackService: FallbackService;
+  private circuitBreaker: CircuitBreaker;
+  private retryPolicy: RetryPolicy;
 
   constructor(config: IsbnServiceConfig = {}) {
+    // Create complete configs by merging defaults with user config
+    const circuitBreakerConfig: CircuitBreakerConfig = {
+      failureThreshold: 5,
+      resetTimeout: 60000, // 1 minute
+      monitoringPeriod: 30000, // 30 seconds
+      ...config.circuitBreakerConfig,
+    };
+
+    const retryConfig: RetryConfig = {
+      maxAttempts: 3,
+      baseDelay: 1000,
+      maxDelay: 5000,
+      backoffMultiplier: 2,
+      jitter: true,
+      ...config.retryConfig,
+    };
+
     this.config = {
       enableCache: config.enableCache ?? true,
-      cacheExpiration: config.cacheExpiration ?? 60 * 60 * 1000, // 1 hour
+      cacheExpiration: config.cacheExpiration ?? 60 * 60 * 1000,
       maxCacheSize: config.maxCacheSize ?? 1000,
       openLibraryClient: config.openLibraryClient ?? openLibraryClient,
+      enableFallback: config.enableFallback ?? true,
+      enableCircuitBreaker: config.enableCircuitBreaker ?? true,
+      enableRetry: config.enableRetry ?? true,
+      circuitBreakerConfig,
+      retryConfig,
     };
 
     this.client = this.config.openLibraryClient;
     this.cache = new Map();
+    this.fallbackService = new FallbackService();
+    this.circuitBreaker = new CircuitBreaker(circuitBreakerConfig);
+    this.retryPolicy = new RetryPolicy(retryConfig);
   }
 
   /**
@@ -74,45 +110,162 @@ export class IsbnService {
       }
     }
 
-    // Fetch from API
+    // Try API with resilience features
     try {
-      const apiResult = await this.client.fetchBookByIsbn(normalizedIsbn);
+      const apiResult = await this.fetchWithResilience(normalizedIsbn);
       
-      if (!apiResult.success) {
+      if (apiResult.success && apiResult.book) {
+        // Cache successful result
+        if (this.config.enableCache) {
+          this.cacheBook(normalizedIsbn, apiResult.book);
+        }
+
         return {
-            success: false,
-            isbn: normalizedIsbn,
-            error: apiResult.error || 'Unknown API error',
-            source: 'api',
-            responseTime: Date.now() - startTime,
+          ...apiResult,
+          isbn: normalizedIsbn,
+          source: 'api',
+          responseTime: Date.now() - startTime,
         };
+      } else {
+        // API failed, try fallback
+        return this.handleApiFallback(normalizedIsbn, apiResult.error || 'API request failed', startTime);
+      }
+    } catch (error) {
+      console.error('Error in resilient ISBN lookup:', error);
+      return this.handleApiFallback(normalizedIsbn, 'Unexpected error during book lookup', startTime);
     }
+  }
 
-      // Transform the data
-      const transformedBook = DataTransformer.transformBook(apiResult.book!, normalizedIsbn);
+  /**
+   * Fetch book data with circuit breaker and retry logic
+   */
+  private async fetchWithResilience(isbn: string): Promise<{
+    success: boolean;
+    book?: TransformedBookData;
+    error?: string;
+  }> {
+    const operation = async () => {
+      if (this.config.enableRetry) {
+        const retryResult = await this.retryPolicy.execute(async () => {
+          return await this.client.fetchBookByIsbn(isbn);
+        });
 
-      // Cache the result
-      if (this.config.enableCache) {
-        this.cacheBook(normalizedIsbn, transformedBook);
+        if (!retryResult.success) {
+          throw retryResult.error || new Error('Retry policy exhausted');
+        }
+
+        const apiResult = retryResult.result!;
+        if (!apiResult.success) {
+          throw new Error(apiResult.error || 'API request failed');
+        }
+
+        return apiResult;
+      } else {
+        return await this.client.fetchBookByIsbn(isbn);
+      }
+    };
+
+    try {
+      let apiResult;
+      
+      if (this.config.enableCircuitBreaker) {
+        apiResult = await this.circuitBreaker.execute(operation);
+      } else {
+        apiResult = await operation();
       }
 
-      return {
-        success: true,
-        isbn: normalizedIsbn,
-        book: transformedBook,
-        source: 'api',
-        responseTime: Date.now() - startTime,
-      };
+      if (apiResult.success && apiResult.book) {
+        const transformedBook = DataTransformer.transformBook(apiResult.book, isbn);
+        return {
+          success: true,
+          book: transformedBook,
+        };
+      } else {
+        return {
+          success: false,
+          error: apiResult.error || 'API request failed',
+        };
+      }
     } catch (error) {
-      console.error('Error in ISBN lookup:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       return {
         success: false,
-        isbn: normalizedIsbn,
-        error: 'Unexpected error during book lookup',
-        source: 'api',
-        responseTime: Date.now() - startTime,
+        error: errorMessage,
       };
     }
+  }
+
+  /**
+   * Handle API failure with fallback mechanisms
+   */
+  private handleApiFallback(isbn: string, error: string, startTime: number): IsbnLookupResult {
+    if (this.config.enableFallback) {
+      console.log(`API failed for ISBN ${isbn}, attempting fallback...`);
+      
+      const fallbackResult = this.fallbackService.getFallbackBook(isbn);
+      if (fallbackResult) {
+        return {
+          ...fallbackResult,
+          error: `API unavailable, using fallback data. Original error: ${error}`,
+          responseTime: Date.now() - startTime,
+        };
+      }
+    }
+
+    return {
+      success: false,
+      isbn,
+      error,
+      source: 'api',
+      responseTime: Date.now() - startTime,
+    };
+  }
+
+  /**
+   * Get service resilience statistics
+   */
+  getResilienceStats(): {
+    circuitBreaker: ReturnType<CircuitBreaker['getStats']>;
+    fallback: ReturnType<FallbackService['getStats']>;
+    cache: ReturnType<IsbnService['getCacheStats']>;
+    config: {
+      enableCache: boolean;
+      enableFallback: boolean;
+      enableCircuitBreaker: boolean;
+      enableRetry: boolean;
+    };
+  } {
+    return {
+      circuitBreaker: this.circuitBreaker.getStats(),
+      fallback: this.fallbackService.getStats(),
+      cache: this.getCacheStats(),
+      config: {
+        enableCache: this.config.enableCache,
+        enableFallback: this.config.enableFallback,
+        enableCircuitBreaker: this.config.enableCircuitBreaker,
+        enableRetry: this.config.enableRetry,
+      },
+    };
+  }
+
+  /**
+   * Reset all resilience mechanisms
+   */
+  resetResilience(): void {
+    this.circuitBreaker.reset();
+    this.fallbackService.clearStaticData();
+    this.clearCache();
+  }
+
+  /**
+   * Add fallback book data for testing or common books
+   */
+  addFallbackBook(isbn: string, title: string): boolean {
+    return this.fallbackService.addStaticBookData(isbn, {
+      title,
+      source: 'manual',
+      confidence: 'medium',
+    });
   }
 
   /**
