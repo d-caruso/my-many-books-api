@@ -7,7 +7,7 @@ import { DataTransformer } from './dataTransformer';
 import { FallbackService } from './fallbackService';
 import { CircuitBreaker, CircuitBreakerConfig } from '@/utils/circuitBreaker';
 import { RetryPolicy, RetryConfig } from '@/utils/retryPolicy';
-import { validateIsbn, normalizeIsbn } from '@/utils/isbn';
+import { validateIsbn } from '@/utils/isbn';
 import { 
   IsbnLookupResult, 
   BatchIsbnLookupResult, 
