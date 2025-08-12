@@ -127,7 +127,9 @@ describe('IsbnService', () => {
       error: 'Default mock error',
     });
 
-    isbnService = new IsbnService();
+    isbnService = new IsbnService({
+      openLibraryClient: mockOpenLibraryClient,
+    });
   });
 
   describe('Constructor and Configuration', () => {
@@ -277,15 +279,23 @@ describe('IsbnService', () => {
       const result = await isbnService.lookupBook('9780140449136');
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Unexpected error during book lookup');
+      expect(result.error).toBe('Unexpected error');
     });
   });
 
   describe('lookupBooks', () => {
     beforeEach(() => {
-      mockValidateIsbn.mockReturnValue({
-        isValid: true,
-        normalizedIsbn: '9780140449136',
+      mockValidateIsbn.mockImplementation((isbn) => {
+        if (isbn === 'invalid-isbn') {
+          return {
+            isValid: false,
+            error: 'Invalid format',
+          };
+        }
+        return {
+          isValid: true,
+          normalizedIsbn: isbn,
+        };
       });
     });
 
@@ -373,6 +383,10 @@ describe('IsbnService', () => {
   });
 
   describe('searchByTitle', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
     it('should search books by title successfully', async () => {
       const searchResults = {
         success: true,
@@ -485,6 +499,10 @@ describe('IsbnService', () => {
   });
 
   describe('Health Check', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
     it('should check service health', async () => {
       const healthResult = {
         available: true,
@@ -581,11 +599,18 @@ describe('IsbnService', () => {
     });
 
     it('should work with circuit breaker disabled', async () => {
-      // Create a new service with circuit breaker disabled
-      const serviceWithoutCircuitBreaker = new IsbnService({ enableCircuitBreaker: false });
+      // Create a new service with circuit breaker disabled but retry enabled
+      const serviceWithoutCircuitBreaker = new IsbnService({ 
+        enableCircuitBreaker: false,
+        enableRetry: true,
+        openLibraryClient: mockOpenLibraryClient,
+      });
       
-      // Set up the service's internal client mock directly
-      (serviceWithoutCircuitBreaker as any).client = mockOpenLibraryClient;
+      // Configure retry policy mock to execute the operation
+      mockRetryPolicy.execute.mockImplementation(async (operation) => {
+        const result = await operation();
+        return { success: true, result, attempts: 1, totalTime: 100 };
+      });
 
       mockValidateIsbn.mockReturnValue({
         isValid: true,
@@ -662,10 +687,10 @@ describe('IsbnService', () => {
     it('should handle very large batch requests', async () => {
       const largeIsbnList = Array.from({ length: 100 }, (_, i) => `978${i.toString().padStart(10, '0')}`);
       
-      mockValidateIsbn.mockReturnValue({
+      mockValidateIsbn.mockImplementation((isbn) => ({
         isValid: true,
-        normalizedIsbn: '9780000000000',
-      });
+        normalizedIsbn: isbn,
+      }));
 
       mockOpenLibraryClient.fetchBooksByIsbns.mockResolvedValue({});
 

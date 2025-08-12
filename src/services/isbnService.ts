@@ -323,7 +323,8 @@ export class IsbnService {
         const apiResults = await this.client.fetchBooksByIsbns(uncachedIsbns);
         apiCallCount = 1; // Single batch API call
 
-        for (const [isbn, apiResult] of Object.entries(apiResults)) {
+        if (apiResults && typeof apiResults === 'object') {
+          for (const [isbn, apiResult] of Object.entries(apiResults)) {
           if (apiResult.success && apiResult.book) {
             try {
               const transformedBook = DataTransformer.transformBook(apiResult.book, isbn);
@@ -359,6 +360,19 @@ export class IsbnService {
             };
             errors.push(`API error for ISBN ${isbn}: ${apiResult.error}`);
           }
+        }
+        } else {
+          // Handle case when apiResults is null or invalid
+          const errorMsg = 'Invalid API response format';
+          for (const isbn of uncachedIsbns) {
+            results[isbn] = {
+              success: false,
+              isbn,
+              error: errorMsg,
+              source: 'api',
+            };
+          }
+          errors.push(errorMsg);
         }
       } catch (error) {
         const errorMsg = 'Batch API request failed';
@@ -407,10 +421,10 @@ export class IsbnService {
     try {
       const searchResult = await this.client.searchBooksByTitle(title, limit);
       
-      if (!searchResult.success) {
+      if (!searchResult || !searchResult.success) {
         return {
           success: false,
-          error: searchResult.error || 'Unknown search error',
+          error: searchResult?.error || 'Unknown search error',
         };
       }
 
