@@ -15,7 +15,6 @@ export const HTTP_STATUS = {
 } as const;
 
 export const ERROR_MESSAGES = {
-  INVALID_ISBN: 'Invalid ISBN format',
   BOOK_NOT_FOUND: 'Book not found',
   BOOK_ALREADY_EXISTS: 'Book with this ISBN already exists',
   INVALID_REQUEST_BODY: 'Invalid request body',
@@ -83,4 +82,31 @@ export const VALIDATION_RULES = {
   NOTES: {
     MAX_LENGTH: 2000,
   },
+} as const;
+
+export const ISBN_CONSTANTS = {
+  ISBN_10_LENGTH: 10,
+  ISBN_13_LENGTH: 13,
+  VALID_PREFIXES: ['978', '979'],
+  REGEX: {
+    DIGITS_ONLY: /^\d+$/,
+    ISBN_10: /^\d{9}[\dX]$/i,
+    ISBN_13: /^\d{13}$/,
+    EXTRACT_13: /\b\d{13}\b/g,
+    EXTRACT_10: /\b\d{9}[\dX]\b/gi,
+  },
+} as const;
+
+export const ISBN_ERROR_MESSAGES = {
+  INVALID_ISBN_LENGTH: 'Invalid ISBN length',
+  EXPECTED_LENGTH: 'Expected 10 or 13 digits',
+  ISBN_REQUIRED: 'ISBN is required',
+  ISBN_10_MUST_BE_10_CHAR: 'ISBN-10 must be exactly 10 characters',
+  ISBN_13_MUST_BE_13_CHAR: 'ISBN-13 must be exactly 13 characters',
+  ISBN_10_MUST_BE_DIGITS: 'First 9 characters of ISBN-10 must be digits',
+  ISBN_10_LAST_CHAR: 'Last character of ISBN-10 must be a digit or X',
+  ISBN_13_PREFIX: 'ISBN-13 must start with 978 or 979',
+  ISBN_13_DIGITS_ONLY: 'ISBN-13 must contain only digits',
+  ISBN_10_INVALID_CHECKSUM: 'Invalid ISBN-10 checksum',
+  ISBN_13_INVALID_CHECKSUM: 'Invalid ISBN-13 checksum',
 } as const;

@@ -27,7 +27,10 @@
     "db:reset": "ts-node scripts/reset-database.ts",
     "db:status": "ts-node scripts/db-status.ts",
     "db:seed": "ts-node -e \"import('./src/utils/database').then(db => db.DatabaseUtils.initialize().then(() => db.DatabaseUtils.seedDatabase()))\"",
-    "db:sync": "ts-node -e \"import('./src/utils/database').then(db => db.DatabaseUtils.initialize().then(() => db.DatabaseUtils.syncDatabase({ alter: true })))\""
+    "db:sync": "ts-node -e \"import('./src/utils/database').then(db => db.DatabaseUtils.initialize().then(() => db.DatabaseUtils.syncDatabase({ alter: true })))\"",
+    "test:isbn": "jest tests/utils/isbn.test.ts",
+    "isbn:validate": "ts-node -e \"import('./src/utils/isbn').then(isbn => console.log(isbn.validateIsbn(process.argv[2])))\"",
+    "isbn:format": "ts-node -e \"import('./src/utils/isbn').then(isbn => console.log(isbn.formatIsbn(process.argv[2])))\""
   },
   "keywords": [
     "books",
