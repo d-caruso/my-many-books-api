@@ -16,13 +16,20 @@ const mockEnv = {
 };
 
 describe('DatabaseConnection', () => {
+  let originalEnv: NodeJS.ProcessEnv;
+
   beforeEach(() => {
+    // Save original environment
+    originalEnv = { ...process.env };
     // Set mock environment variables
     Object.assign(process.env, mockEnv);
+    // Reset singleton
+    (DatabaseConnection as any).instance = null;
   });
 
   afterEach(() => {
-    // Clean up
+    // Restore original environment
+    process.env = originalEnv;
     jest.clearAllMocks();
   });
 
@@ -35,7 +42,8 @@ describe('DatabaseConnection', () => {
     });
 
     it('should throw error when required env vars are missing', () => {
-      delete process.env.DB_HOST;
+      // Clear the required environment variable
+      delete process.env['DB_HOST'];
       
       expect(() => {
         DatabaseConnection.getInstance();

@@ -16,15 +16,7 @@ class DatabaseConnection {
   }
 
   private static createConnection(): Sequelize {
-    const {
-      DB_HOST,
-      DB_PORT,
-      DB_NAME,
-      DB_USER,
-      DB_PASSWORD,
-      DB_SSL,
-      NODE_ENV,
-    } = process.env;
+    const { DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, DB_SSL, NODE_ENV } = process.env;
 
     if (!DB_HOST || !DB_NAME || !DB_USER || !DB_PASSWORD) {
       throw new Error('Missing required database environment variables');

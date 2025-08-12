@@ -40,10 +40,10 @@ export const DATABASE_CONFIG = {
   DIALECT: 'mysql' as const,
   TIMEZONE: '+00:00',
   POOL: {
-    MAX: 5,
-    MIN: 0,
-    ACQUIRE: 30000,
-    IDLE: 10000,
+    max: 5,
+    min: 0,
+    acquire: 30000,
+    idle: 10000,
   },
 } as const;
 
