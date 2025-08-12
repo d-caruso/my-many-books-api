@@ -99,6 +99,7 @@ export const ISBN_CONSTANTS = {
 
 export const ISBN_ERROR_MESSAGES = {
   INVALID_ISBN_LENGTH: 'Invalid ISBN length',
+  NO_VALID_ISBN_FOUND: 'No valid ISBN found',
   EXPECTED_LENGTH: 'Expected 10 or 13 digits',
   ISBN_REQUIRED: 'ISBN is required',
   ISBN_10_MUST_BE_10_CHAR: 'ISBN-10 must be exactly 10 characters',

@@ -30,7 +30,11 @@
     "db:sync": "ts-node -e \"import('./src/utils/database').then(db => db.DatabaseUtils.initialize().then(() => db.DatabaseUtils.syncDatabase({ alter: true })))\"",
     "test:isbn": "jest tests/utils/isbn.test.ts",
     "isbn:validate": "ts-node -e \"import('./src/utils/isbn').then(isbn => console.log(isbn.validateIsbn(process.argv[2])))\"",
-    "isbn:format": "ts-node -e \"import('./src/utils/isbn').then(isbn => console.log(isbn.formatIsbn(process.argv[2])))\""
+    "isbn:format": "ts-node -e \"import('./src/utils/isbn').then(isbn => console.log(isbn.formatIsbn(process.argv[2])))\"",
+    "test:openlibrary": "jest tests/services/openLibraryClient.test.ts",
+    "openlibrary:fetch": "ts-node -e \"import('./src/services/openLibraryClient').then(ol => ol.openLibraryClient.fetchBookByIsbn(process.argv[2]).then(console.log))\"",
+    "openlibrary:search": "ts-node -e \"import('./src/services/openLibraryClient').then(ol => ol.openLibraryClient.searchBooksByTitle(process.argv[2]).then(console.log))\"",
+    "openlibrary:health": "ts-node -e \"import('./src/services/openLibraryClient').then(ol => ol.openLibraryClient.healthCheck().then(console.log))\""
   },
   "keywords": [
     "books",
