@@ -34,7 +34,12 @@
     "test:openlibrary": "jest tests/services/openLibraryClient.test.ts",
     "openlibrary:fetch": "ts-node -e \"import('./src/services/openLibraryClient').then(ol => ol.openLibraryClient.fetchBookByIsbn(process.argv[2]).then(console.log))\"",
     "openlibrary:search": "ts-node -e \"import('./src/services/openLibraryClient').then(ol => ol.openLibraryClient.searchBooksByTitle(process.argv[2]).then(console.log))\"",
-    "openlibrary:health": "ts-node -e \"import('./src/services/openLibraryClient').then(ol => ol.openLibraryClient.healthCheck().then(console.log))\""
+    "openlibrary:health": "ts-node -e \"import('./src/services/openLibraryClient').then(ol => ol.openLibraryClient.healthCheck().then(console.log))\"",
+    "test:isbn-service": "jest tests/services/isbnService.test.ts",
+    "test:data-transformer": "jest tests/services/dataTransformer.test.ts",
+    "isbn:lookup": "ts-node -e \"import('./src/services/isbnService').then(s => s.isbnService.lookupBook(process.argv[2]).then(console.log))\"",
+    "isbn:search": "ts-node -e \"import('./src/services/isbnService').then(s => s.isbnService.searchByTitle(process.argv[2]).then(console.log))\"",
+    "isbn:health": "ts-node -e \"import('./src/services/isbnService').then(s => s.isbnService.checkServiceHealth().then(console.log))\""
   },
   "keywords": [
     "books",
