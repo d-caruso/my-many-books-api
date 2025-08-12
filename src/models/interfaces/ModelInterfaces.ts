@@ -8,7 +8,7 @@ import { BaseModelAttributes } from '../base/BaseModel';
 export interface AuthorAttributes extends BaseModelAttributes {
   name: string;
   surname: string;
-  nationality?: string;
+  nationality?: string | null;
 }
 
 export interface AuthorCreationAttributes extends Omit<AuthorAttributes, 'id' | 'creationDate' | 'updateDate'> {}
@@ -36,15 +36,25 @@ export interface BookCreationAttributes extends Omit<BookAttributes, 'id' | 'cre
 export interface BookAuthorAttributes {
   bookId: number;
   authorId: number;
-  creationDate?: Date;
+  creationDate: Date;
   updateDate?: Date;
+}
+
+export interface BookAuthorCreationAttributes {
+  bookId: number;
+  authorId: number;
 }
 
 export interface BookCategoryAttributes {
   bookId: number;
   categoryId: number;
-  creationDate?: Date;
+  creationDate: Date;
   updateDate?: Date;
+}
+
+export interface BookCategoryCreationAttributes {
+  bookId: number;
+  categoryId: number;
 }
 
 // Enums and types
@@ -69,7 +79,7 @@ export interface FindOptions {
   page?: number;
   limit?: number;
   include?: string[];
-  where?: Record<string, any>;
+  where?: Record<string, unknown>;
   order?: Array<[string, 'ASC' | 'DESC']>;
 }
 

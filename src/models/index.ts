@@ -1,12 +1,17 @@
 // ================================================================
 // src/models/index.ts
 // ================================================================
+
 import { Sequelize } from 'sequelize';
 import { ModelAssociations } from './associations/ModelAssociations';
+import { Author } from './Author';
+import { Category } from './Category';
 
 export * from './interfaces/ModelInterfaces';
 export * from './base/BaseModel';
 export * from './associations/ModelAssociations';
+export * from './Author';
+export * from './Category';
 
 export class ModelManager {
   private static sequelize: Sequelize | null = null;
@@ -19,11 +24,16 @@ export class ModelManager {
 
     ModelManager.sequelize = sequelize;
 
-    // Models will be imported and registered here in future commits
-    // This is the central initialization point
+    // Initialize models
+    Author.initModel(sequelize);
+    Category.initModel(sequelize);
+
+    // Register models for associations
+    ModelAssociations.registerModel('Author', Author);
+    ModelAssociations.registerModel('Category', Category);
 
     ModelManager.initialized = true;
-    console.log('Model manager initialized successfully');
+    console.log('Model manager initialized with Author and Category models');
   }
 
   static getSequelize(): Sequelize {
@@ -51,5 +61,12 @@ export class ModelManager {
       ModelManager.sequelize = null;
       ModelManager.initialized = false;
     }
+  }
+
+  static getModels() {
+    return {
+      Author,
+      Category,
+    };
   }
 }

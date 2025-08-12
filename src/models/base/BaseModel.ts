@@ -5,8 +5,8 @@
 import { Model, DataTypes, Sequelize } from 'sequelize';
 
 export interface BaseModelAttributes {
-  id?: number;
-  creationDate?: Date;
+  id: number;
+  creationDate: Date;
   updateDate?: Date;
 }
 
