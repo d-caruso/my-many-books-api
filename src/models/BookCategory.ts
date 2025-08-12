@@ -4,12 +4,18 @@
 
 import { DataTypes, Sequelize } from 'sequelize';
 import { Model } from 'sequelize';
-import { BookCategoryAttributes, BookCategoryCreationAttributes } from './interfaces/ModelInterfaces';
+import {
+  BookCategoryAttributes,
+  BookCategoryCreationAttributes,
+} from './interfaces/ModelInterfaces';
 import { TABLE_NAMES } from '@/utils/constants';
 import { Book } from './Book';
 import { Category } from './Category';
 
-export class BookCategory extends Model<BookCategoryAttributes, BookCategoryCreationAttributes> implements BookCategoryAttributes {
+export class BookCategory
+  extends Model<BookCategoryAttributes, BookCategoryCreationAttributes>
+  implements BookCategoryAttributes
+{
   public bookId!: number;
   public categoryId!: number;
   public readonly creationDate!: Date;

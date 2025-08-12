@@ -22,7 +22,12 @@
     "db:test": "npm run test -- tests/config/",
     "db:connect": "ts-node -e \"import('./src/config/database').then(db => db.default.testConnection())\"",
     "db:create": "ts-node scripts/create-database.ts",
-    "db:migrate": "ts-node scripts/migrate-database.ts"
+    "db:migrate": "ts-node scripts/migrate-database.ts",
+    "db:init": "ts-node scripts/init-database.ts",
+    "db:reset": "ts-node scripts/reset-database.ts",
+    "db:status": "ts-node scripts/db-status.ts",
+    "db:seed": "ts-node -e \"import('./src/utils/database').then(db => db.DatabaseUtils.initialize().then(() => db.DatabaseUtils.seedDatabase()))\"",
+    "db:sync": "ts-node -e \"import('./src/utils/database').then(db => db.DatabaseUtils.initialize().then(() => db.DatabaseUtils.syncDatabase({ alter: true })))\""
   },
   "keywords": [
     "books",

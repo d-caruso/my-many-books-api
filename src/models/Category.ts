@@ -68,7 +68,7 @@ export class Category extends IdBaseModel<CategoryAttributes> implements Categor
 
   static async searchByName(searchTerm: string): Promise<Category[]> {
     const { Op } = require('sequelize');
-    
+
     return await Category.findAll({
       where: {
         name: {
@@ -88,10 +88,10 @@ export class Category extends IdBaseModel<CategoryAttributes> implements Categor
   static async createCategory(categoryData: CategoryCreationAttributes): Promise<Category> {
     // Normalize category name (trim and proper case)
     const normalizedName = categoryData.name.trim();
-    
+
     // Check if category already exists
     const existingCategory = await Category.findByName(normalizedName);
-    
+
     if (existingCategory) {
       return existingCategory;
     }
@@ -102,9 +102,11 @@ export class Category extends IdBaseModel<CategoryAttributes> implements Categor
     } as any);
   }
 
-  static async findOrCreateCategory(categoryData: CategoryCreationAttributes): Promise<[Category, boolean]> {
+  static async findOrCreateCategory(
+    categoryData: CategoryCreationAttributes
+  ): Promise<[Category, boolean]> {
     const normalizedName = categoryData.name.trim();
-    
+
     return await Category.findOrCreate({
       where: {
         name: normalizedName,

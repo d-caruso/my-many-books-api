@@ -128,10 +128,10 @@ export class Book extends IdBaseModel<BookAttributes> implements BookAttributes 
       id: this.id,
       isbnCode: this.isbnCode,
       title: this.title,
-      editionNumber: this.editionNumber ?? undefined,
-      editionDate: this.editionDate ?? undefined,
-      status: this.status ?? undefined,
-      notes: this.notes ?? undefined,
+      editionNumber: this.editionNumber,
+      editionDate: this.editionDate,
+      status: this.status,
+      notes: this.notes,
       creationDate: this.creationDate,
       updateDate: this.updateDate,
     };
@@ -147,16 +147,20 @@ export class Book extends IdBaseModel<BookAttributes> implements BookAttributes 
   private getOrdinalSuffix(num: number): string {
     const lastDigit = num % 10;
     const lastTwoDigits = num % 100;
-    
+
     if (lastTwoDigits >= 11 && lastTwoDigits <= 13) {
       return 'th';
     }
-    
+
     switch (lastDigit) {
-      case 1: return 'st';
-      case 2: return 'nd';
-      case 3: return 'rd';
-      default: return 'th';
+      case 1:
+        return 'st';
+      case 2:
+        return 'nd';
+      case 3:
+        return 'rd';
+      default:
+        return 'th';
     }
   }
 
@@ -187,7 +191,7 @@ export class Book extends IdBaseModel<BookAttributes> implements BookAttributes 
 
   static async searchByTitle(searchTerm: string): Promise<Book[]> {
     const { Op } = require('sequelize');
-    
+
     return await Book.findAll({
       where: {
         title: {
@@ -246,7 +250,7 @@ export class Book extends IdBaseModel<BookAttributes> implements BookAttributes 
   static async createBook(bookData: BookCreationAttributes): Promise<Book> {
     // Check if book already exists
     const existingBook = await Book.findByISBN(bookData.isbnCode);
-    
+
     if (existingBook) {
       throw new Error(`Book with ISBN ${bookData.isbnCode} already exists`);
     }
@@ -261,7 +265,7 @@ export class Book extends IdBaseModel<BookAttributes> implements BookAttributes 
   }> {
     const { Op } = require('sequelize');
     const totalBooks = await Book.count();
-    
+
     const statusCounts = await Promise.all([
       Book.count({ where: { status: BOOK_STATUS.IN_PROGRESS } }),
       Book.count({ where: { status: BOOK_STATUS.PAUSED } }),
@@ -278,5 +282,45 @@ export class Book extends IdBaseModel<BookAttributes> implements BookAttributes 
       },
       withoutStatus: statusCounts[3] || 0,
     };
+  }
+
+  public async addAuthors(authors: Author[]): Promise<void> {
+    const { BookAuthor } = require('./BookAuthor');
+
+    for (const author of authors) {
+      await BookAuthor.addAuthorToBook(this.id, author.id);
+    }
+  }
+
+  public async addAuthor(author: Author): Promise<void> {
+    await this.addAuthors([author]);
+  }
+
+  public async addCategories(categories: Category[]): Promise<void> {
+    const { BookCategory } = require('./BookCategory');
+
+    for (const category of categories) {
+      await BookCategory.addCategoryToBook(this.id, category.id);
+    }
+  }
+
+  public async addCategory(category: Category): Promise<void> {
+    await this.addCategories([category]);
+  }
+
+  public async removeAuthors(authors: Author[]): Promise<void> {
+    const { BookAuthor } = require('./BookAuthor');
+
+    for (const author of authors) {
+      await BookAuthor.removeAuthorFromBook(this.id, author.id);
+    }
+  }
+
+  public async removeCategories(categories: Category[]): Promise<void> {
+    const { BookCategory } = require('./BookCategory');
+
+    for (const category of categories) {
+      await BookCategory.removeCategoryFromBook(this.id, category.id);
+    }
   }
 }

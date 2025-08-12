@@ -102,13 +102,16 @@ export class Author extends IdBaseModel<AuthorAttributes> implements AuthorAttri
       where: {
         nationality,
       },
-      order: [['surname', 'ASC'], ['name', 'ASC']],
+      order: [
+        ['surname', 'ASC'],
+        ['name', 'ASC'],
+      ],
     });
   }
 
   static async searchByName(searchTerm: string): Promise<Author[]> {
     const { Op } = require('sequelize');
-    
+
     return await Author.findAll({
       where: {
         [Op.or]: [
@@ -124,14 +127,17 @@ export class Author extends IdBaseModel<AuthorAttributes> implements AuthorAttri
           },
         ],
       },
-      order: [['surname', 'ASC'], ['name', 'ASC']],
+      order: [
+        ['surname', 'ASC'],
+        ['name', 'ASC'],
+      ],
     });
   }
 
   static async createAuthor(authorData: AuthorCreationAttributes): Promise<Author> {
     // Check if author already exists
     const existingAuthor = await Author.findByFullName(authorData.name, authorData.surname);
-    
+
     if (existingAuthor) {
       return existingAuthor;
     }
@@ -139,7 +145,9 @@ export class Author extends IdBaseModel<AuthorAttributes> implements AuthorAttri
     return await Author.create(authorData as any);
   }
 
-  static async findOrCreateAuthor(authorData: AuthorCreationAttributes): Promise<[Author, boolean]> {
+  static async findOrCreateAuthor(
+    authorData: AuthorCreationAttributes
+  ): Promise<[Author, boolean]> {
     return await Author.findOrCreate({
       where: {
         name: authorData.name,

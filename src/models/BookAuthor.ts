@@ -9,7 +9,10 @@ import { TABLE_NAMES } from '@/utils/constants';
 import { Book } from './Book';
 import { Author } from './Author';
 
-export class BookAuthor extends Model<BookAuthorAttributes, BookAuthorCreationAttributes> implements BookAuthorAttributes {
+export class BookAuthor
+  extends Model<BookAuthorAttributes, BookAuthorCreationAttributes>
+  implements BookAuthorAttributes
+{
   public bookId!: number;
   public authorId!: number;
   public readonly creationDate!: Date;
