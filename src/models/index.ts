@@ -6,12 +6,18 @@ import { Sequelize } from 'sequelize';
 import { ModelAssociations } from './associations/ModelAssociations';
 import { Author } from './Author';
 import { Category } from './Category';
+import { Book } from './Book';
+import { BookAuthor } from './BookAuthor';
+import { BookCategory } from './BookCategory';
 
 export * from './interfaces/ModelInterfaces';
 export * from './base/BaseModel';
 export * from './associations/ModelAssociations';
 export * from './Author';
 export * from './Category';
+export * from './Book';
+export * from './BookAuthor';
+export * from './BookCategory';
 
 export class ModelManager {
   private static sequelize: Sequelize | null = null;
@@ -24,16 +30,25 @@ export class ModelManager {
 
     ModelManager.sequelize = sequelize;
 
-    // Initialize models
+    // Initialize models in dependency order
     Author.initModel(sequelize);
     Category.initModel(sequelize);
+    Book.initModel(sequelize);
+    BookAuthor.initModel(sequelize);
+    BookCategory.initModel(sequelize);
 
     // Register models for associations
     ModelAssociations.registerModel('Author', Author);
     ModelAssociations.registerModel('Category', Category);
+    ModelAssociations.registerModel('Book', Book);
+    ModelAssociations.registerModel('BookAuthor', BookAuthor);
+    ModelAssociations.registerModel('BookCategory', BookCategory);
+
+    // Define associations
+    ModelAssociations.defineAssociations();
 
     ModelManager.initialized = true;
-    console.log('Model manager initialized with Author and Category models');
+    console.log('Model manager initialized with all models and associations');
   }
 
   static getSequelize(): Sequelize {
@@ -67,6 +82,9 @@ export class ModelManager {
     return {
       Author,
       Category,
+      Book,
+      BookAuthor,
+      BookCategory,
     };
   }
 }

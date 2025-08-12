@@ -4,35 +4,19 @@
 
 import { Model, DataTypes, Sequelize } from 'sequelize';
 
+// Base interface with only timestamps
 export interface BaseModelAttributes {
-  id: number;
   creationDate: Date;
-  updateDate?: Date;
+  updateDate?: Date | undefined;
 }
 
+// Base model with only timestamps (for junction tables)
 export abstract class BaseModel<T extends BaseModelAttributes> extends Model<T> {
-  public id!: number;
   public readonly creationDate!: Date;
-  public readonly updateDate!: Date;
+  public updateDate?: Date;
 
-  // Common model methods that all models will inherit
-  public static override getTableName(): string {
-    throw new Error('getTableName must be implemented by subclass');
-  }
-
-  public static getModelName(): string {
-    throw new Error('getModelName must be implemented by subclass');
-  }
-
-  // Helper method to define common attributes
   protected static getBaseAttributes() {
     return {
-      id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true,
-        allowNull: false,
-      },
       creationDate: {
         type: DataTypes.DATE,
         allowNull: false,
@@ -41,14 +25,12 @@ export abstract class BaseModel<T extends BaseModelAttributes> extends Model<T> 
       },
       updateDate: {
         type: DataTypes.DATE,
-        allowNull: false,
-        defaultValue: DataTypes.NOW,
+        allowNull: true,
         field: 'update_date',
       },
     };
   }
 
-  // Helper method to define common model options
   protected static getBaseOptions(sequelize: Sequelize, tableName: string) {
     return {
       sequelize,
@@ -60,9 +42,6 @@ export abstract class BaseModel<T extends BaseModelAttributes> extends Model<T> 
       indexes: [
         {
           fields: ['creation_date'],
-        },
-        {
-          fields: ['update_date'],
         },
       ],
     };

@@ -3,9 +3,10 @@
 // ================================================================
 
 import { BaseModelAttributes } from '../base/BaseModel';
+import { IdBaseModelAttributes } from '../base/IdBaseModel';
 
 // Author interfaces
-export interface AuthorAttributes extends BaseModelAttributes {
+export interface AuthorAttributes extends IdBaseModelAttributes {
   name: string;
   surname: string;
   nationality?: string | null;
@@ -14,48 +15,40 @@ export interface AuthorAttributes extends BaseModelAttributes {
 export interface AuthorCreationAttributes extends Omit<AuthorAttributes, 'id' | 'creationDate' | 'updateDate'> {}
 
 // Category interfaces
-export interface CategoryAttributes extends BaseModelAttributes {
+export interface CategoryAttributes extends IdBaseModelAttributes {
   name: string;
 }
 
 export interface CategoryCreationAttributes extends Omit<CategoryAttributes, 'id' | 'creationDate' | 'updateDate'> {}
 
 // Book interfaces
-export interface BookAttributes extends BaseModelAttributes {
+export interface BookAttributes extends IdBaseModelAttributes {
   isbnCode: string;
   title: string;
-  editionNumber?: number;
-  editionDate?: Date;
-  status?: BookStatus;
-  notes?: string;
+  editionNumber?: number | undefined;
+  editionDate?: Date | undefined;
+  status?: BookStatus | undefined;
+  notes?: string | undefined;
 }
 
 export interface BookCreationAttributes extends Omit<BookAttributes, 'id' | 'creationDate' | 'updateDate'> {}
 
+export interface BookUpdateAttributes extends Omit<Partial<BookAttributes>, 'id' | 'creationDate'> {}
+
 // Junction table interfaces
-export interface BookAuthorAttributes {
-  bookId: number;
-  authorId: number;
-  creationDate: Date;
-  updateDate?: Date;
-}
-
-export interface BookAuthorCreationAttributes {
+export interface BookAuthorAttributes extends BaseModelAttributes {
   bookId: number;
   authorId: number;
 }
 
-export interface BookCategoryAttributes {
+export interface BookAuthorCreationAttributes extends Omit<BookAuthorAttributes, 'creationDate' | 'updateDate'> {}
+
+export interface BookCategoryAttributes extends BaseModelAttributes {
   bookId: number;
   categoryId: number;
-  creationDate: Date;
-  updateDate?: Date;
 }
 
-export interface BookCategoryCreationAttributes {
-  bookId: number;
-  categoryId: number;
-}
+export interface BookCategoryCreationAttributes extends Omit<BookCategoryAttributes, 'creationDate' | 'updateDate'> {}
 
 // Enums and types
 export type BookStatus = 'in progress' | 'paused' | 'finished';
@@ -90,7 +83,7 @@ export interface CreateBookWithAssociations {
 }
 
 export interface UpdateBookWithAssociations {
-  book: Partial<BookAttributes>;
+  book: BookUpdateAttributes;
   authors?: AuthorCreationAttributes[];
   categories?: CategoryCreationAttributes[];
 }

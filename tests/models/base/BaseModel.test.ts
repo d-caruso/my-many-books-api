@@ -1,7 +1,3 @@
-// ================================================================
-// tests/models/base/BaseModel.test.ts
-// ================================================================
-
 import { BaseModel } from '@/models/base/BaseModel';
 import { Sequelize, DataTypes } from 'sequelize';
 
@@ -19,80 +15,40 @@ describe('BaseModel', () => {
   });
 
   describe('getBaseAttributes', () => {
-    it('should return correct base attributes', () => {
-      // Mock model for testing that extends BaseModel to access protected methods
-      class TestModel extends BaseModel<any> {
-        static override getTableName(): string {
-          return 'test_table';
-        }
-
-        static override getModelName(): string {
-          return 'TestModel';
-        }
-
+    it('should return correct base attributes without id', () => {
+      class TestJunctionModel extends BaseModel<any> {
         static testGetBaseAttributes() {
-          return this.getBaseAttributes();
+          return super.getBaseAttributes();
         }
       }
 
-      const attributes = TestModel.testGetBaseAttributes();
+      const attributes = TestJunctionModel.testGetBaseAttributes();
 
-      expect(attributes).toHaveProperty('id');
+      expect(attributes).not.toHaveProperty('id');
       expect(attributes).toHaveProperty('creationDate');
       expect(attributes).toHaveProperty('updateDate');
 
-      expect(attributes.id.type).toBe(DataTypes.INTEGER);
-      expect(attributes.id.primaryKey).toBe(true);
-      expect(attributes.id.autoIncrement).toBe(true);
+      expect(attributes.creationDate.type).toBe(DataTypes.DATE);
+      expect(attributes.updateDate.type).toBe(DataTypes.DATE);
     });
   });
 
   describe('getBaseOptions', () => {
     it('should return correct base options', () => {
-      class TestModel extends BaseModel<any> {
-        static override getTableName(): string {
-          return 'test_table';
-        }
-
-        static override getModelName(): string {
-          return 'TestModel';
-        }
-
+      class TestJunctionModel extends BaseModel<any> {
         static testGetBaseOptions(sequelize: Sequelize, tableName: string) {
-          return this.getBaseOptions(sequelize, tableName);
+          return super.getBaseOptions(sequelize, tableName);
         }
       }
 
-      const options = TestModel.testGetBaseOptions(sequelize, 'test_table');
+      const options = TestJunctionModel.testGetBaseOptions(sequelize, 'test_junction');
 
       expect(options.sequelize).toBe(sequelize);
-      expect(options.tableName).toBe('test_table');
+      expect(options.tableName).toBe('test_junction');
       expect(options.timestamps).toBe(true);
       expect(options.underscored).toBe(true);
       expect(options.createdAt).toBe('creation_date');
       expect(options.updatedAt).toBe('update_date');
-    });
-  });
-
-  describe('abstract methods', () => {
-    it('should throw error when getTableName is not implemented', () => {
-      class IncompleteModel extends BaseModel<any> {
-        // Intentionally not implementing getTableName
-      }
-
-      expect(() => {
-        IncompleteModel.getTableName();
-      }).toThrow('getTableName must be implemented by subclass');
-    });
-
-    it('should throw error when getModelName is not implemented', () => {
-      class IncompleteModel extends BaseModel<any> {
-        // Intentionally not implementing getModelName
-      }
-
-      expect(() => {
-        IncompleteModel.getModelName();
-      }).toThrow('getModelName must be implemented by subclass');
     });
   });
 });

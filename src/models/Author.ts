@@ -3,11 +3,11 @@
 // ================================================================
 
 import { DataTypes, Sequelize } from 'sequelize';
-import { BaseModel } from './base/BaseModel';
+import { IdBaseModel } from './base/IdBaseModel';
 import { AuthorAttributes, AuthorCreationAttributes } from './interfaces/ModelInterfaces';
 import { TABLE_NAMES } from '@/utils/constants';
 
-export class Author extends BaseModel<AuthorAttributes> implements AuthorAttributes {
+export class Author extends IdBaseModel<AuthorAttributes> implements AuthorAttributes {
   public name!: string;
   public surname!: string;
   public nationality?: string;

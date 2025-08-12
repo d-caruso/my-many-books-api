@@ -2,11 +2,11 @@
 // src/models/Category.ts
 // ================================================================
 import { DataTypes, Sequelize } from 'sequelize';
-import { BaseModel } from './base/BaseModel';
+import { IdBaseModel } from './base/IdBaseModel';
 import { CategoryAttributes, CategoryCreationAttributes } from './interfaces/ModelInterfaces';
 import { TABLE_NAMES } from '@/utils/constants';
 
-export class Category extends BaseModel<CategoryAttributes> implements CategoryAttributes {
+export class Category extends IdBaseModel<CategoryAttributes> implements CategoryAttributes {
   public name!: string;
 
   static override getTableName(): string {
