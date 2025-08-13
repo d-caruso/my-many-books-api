@@ -117,17 +117,4 @@ export class Category extends IdBaseModel<CategoryAttributes> implements Categor
       },
     } as any);
   }
-
-  static async getCategoryStats(): Promise<Array<{ name: string; bookCount: number }>> {
-    // This will be implemented when Book model is available
-    // For now, return basic stats
-    const categories = await Category.findAll({
-      order: [['name', 'ASC']],
-    });
-
-    return categories.map(category => ({
-      name: category.name,
-      bookCount: 0, // Will be populated with actual count later
-    }));
-  }
 }

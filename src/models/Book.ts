@@ -258,32 +258,6 @@ export class Book extends IdBaseModel<BookAttributes> implements BookAttributes 
     return await Book.create(bookData as any);
   }
 
-  static async getBookStats(): Promise<{
-    total: number;
-    byStatus: Record<BookStatus, number>;
-    withoutStatus: number;
-  }> {
-    const { Op } = require('sequelize');
-    const totalBooks = await Book.count();
-
-    const statusCounts = await Promise.all([
-      Book.count({ where: { status: BOOK_STATUS.IN_PROGRESS } }),
-      Book.count({ where: { status: BOOK_STATUS.PAUSED } }),
-      Book.count({ where: { status: BOOK_STATUS.FINISHED } }),
-      Book.count({ where: { status: { [Op.is]: null } } }),
-    ]);
-
-    return {
-      total: totalBooks,
-      byStatus: {
-        [BOOK_STATUS.IN_PROGRESS]: statusCounts[0] || 0,
-        [BOOK_STATUS.PAUSED]: statusCounts[1] || 0,
-        [BOOK_STATUS.FINISHED]: statusCounts[2] || 0,
-      },
-      withoutStatus: statusCounts[3] || 0,
-    };
-  }
-
   public async addAuthors(authors: Author[]): Promise<void> {
     const { BookAuthor } = require('./BookAuthor');
 
