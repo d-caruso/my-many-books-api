@@ -1,0 +1,39 @@
+{
+  "type": "object",
+  "required": ["isbnCode", "title"],
+  "properties": {
+    "isbnCode": {
+      "type": "string",
+      "pattern": "^(97[89])?\\d{9}[\\dX]$",
+      "description": "Valid ISBN-10 or ISBN-13"
+    },
+    "title": {
+      "type": "string",
+      "maxLength": 500,
+      "minLength": 1,
+      "description": "Book title"
+    },
+    "editionNumber": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 999,
+      "description": "Edition number"
+    },
+    "editionDate": {
+      "type": "string",
+      "format": "date",
+      "description": "Edition publication date (YYYY-MM-DD)"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["available", "reading", "read", "wishlist"],
+      "description": "Reading status"
+    },
+    "notes": {
+      "type": "string",
+      "maxLength": 1000,
+      "description": "Personal notes about the book"
+    }
+  },
+  "additionalProperties": false
+}

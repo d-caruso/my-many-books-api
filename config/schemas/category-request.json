@@ -1,0 +1,14 @@
+{
+  "type": "object",
+  "required": ["name"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "maxLength": 255,
+      "minLength": 1,
+      "pattern": "^[a-zA-Z0-9\\s\\u00C0-\\u017F&'-]+$",
+      "description": "Category name (letters, numbers, spaces, accented characters, ampersand, hyphens, apostrophes only)"
+    }
+  },
+  "additionalProperties": false
+}

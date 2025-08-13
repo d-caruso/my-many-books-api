@@ -1,0 +1,27 @@
+{
+  "type": "object",
+  "required": ["name", "surname"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-zA-Z\\s\\u00C0-\\u017F'-]+$",
+      "description": "Author's first name (letters, spaces, accented characters, hyphens, apostrophes only)"
+    },
+    "surname": {
+      "type": "string",
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-zA-Z\\s\\u00C0-\\u017F'-]+$",
+      "description": "Author's last name (letters, spaces, accented characters, hyphens, apostrophes only)"
+    },
+    "nationality": {
+      "type": "string",
+      "maxLength": 100,
+      "pattern": "^[a-zA-Z\\s\\u00C0-\\u017F'-]+$",
+      "description": "Author's nationality (optional)"
+    }
+  },
+  "additionalProperties": false
+}

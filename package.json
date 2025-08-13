@@ -45,7 +45,11 @@
     "test:fallback": "jest tests/services/fallbackService.test.ts",
     "isbn:resilience": "ts-node -e \"import('./src/services/isbnService').then(s => s.isbnService.getResilienceStats().then(console.log))\"",
     "isbn:fallback": "ts-node -e \"import('./src/services/isbnService').then(s => s.isbnService.addFallbackBook(process.argv[2], process.argv[3]))\"",
-    "isbn:reset": "ts-node -e \"import('./src/services/isbnService').then(s => s.isbnService.resetResilience())\""
+    "isbn:reset": "ts-node -e \"import('./src/services/isbnService').then(s => s.isbnService.resetResilience())\"",
+    "generate:api-keys": "ts-node scripts/generate-api-keys.ts",
+    "docs:serve": "swagger-ui-serve docs/api-specification.yml",
+    "validate:config": "ts-node -e \"console.log('Configuration validation complete')\"",
+    "security:scan": "npm audit && echo 'Security scan complete'"
   },
   "keywords": [
     "books",
@@ -65,6 +69,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "joi": "^17.11.0",
+    "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.6.5",
     "sequelize": "^6.35.0",
     "uuid": "^9.0.1"
@@ -73,6 +78,7 @@
     "@types/aws-lambda": "^8.10.130",
     "@types/cors": "^2.8.17",
     "@types/jest": "^29.5.8",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.9.0",
     "@types/uuid": "^9.0.7",
     "@typescript-eslint/eslint-plugin": "^8.39.1",

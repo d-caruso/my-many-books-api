@@ -1,0 +1,172 @@
+# ================================================================
+# config/security.yml - Security Configuration
+# ================================================================
+
+security:
+  # API Key configuration
+  apiKeys:
+    enabled: ${env:API_KEYS_ENABLED, 'false'}
+    headerName: "X-Api-Key"
+    
+    # Different API key tiers
+    tiers:
+      basic:
+        rateLimit: 100 # requests per minute
+        quotaLimit: 10000 # requests per month
+        
+      premium:
+        rateLimit: 500
+        quotaLimit: 100000
+        
+      enterprise:
+        rateLimit: 1000
+        quotaLimit: 1000000
+
+  # AWS Cognito User Pool configuration
+  cognito:
+    enabled: ${env:COGNITO_ENABLED, 'false'}
+    userPoolId: ${env:COGNITO_USER_POOL_ID, ''}
+    clientId: ${env:COGNITO_CLIENT_ID, ''}
+    region: ${env:AWS_REGION, 'us-east-1'}
+    
+    # JWT token validation
+    jwt:
+      issuer: "https://cognito-idp.${env:AWS_REGION, 'us-east-1'}.amazonaws.com/${env:COGNITO_USER_POOL_ID, ''}"
+      audience: ${env:COGNITO_CLIENT_ID, ''}
+      algorithms:
+        - RS256
+      
+  # Request rate limiting
+  rateLimiting:
+    # Global rate limits (per IP)
+    global:
+      windowMs: 60000 # 1 minute
+      maxRequests: 1000
+      skipSuccessfulRequests: false
+      
+    # Per-endpoint rate limits  
+    endpoints:
+      "/books":
+        windowMs: 60000
+        maxRequests: 100
+        
+      "/isbn/lookup":
+        windowMs: 60000  
+        maxRequests: 50
+        
+      "/isbn/search":
+        windowMs: 60000
+        maxRequests: 30
+
+  # Input validation and sanitization
+  validation:
+    # Request size limits
+    maxRequestSize: "10mb"
+    maxUrlLength: 2048
+    maxHeaderSize: "16kb"
+    
+    # Content type restrictions
+    allowedContentTypes:
+      - "application/json"
+      - "application/x-www-form-urlencoded"
+      - "multipart/form-data"
+    
+    # SQL injection protection
+    sqlInjectionProtection:
+      enabled: true
+      patterns:
+        - "(?i)(union|select|insert|update|delete|drop|create|alter|exec|execute)"
+        - "(?i)(script|javascript|vbscript|onload|onerror)"
+        
+    # XSS protection
+    xssProtection:
+      enabled: true
+      sanitizeHtml: true
+      allowedTags: []
+      
+  # HTTPS enforcement
+  https:
+    enforced: true
+    hstsMaxAge: 31536000 # 1 year
+    hstsIncludeSubdomains: true
+    hstsPreload: true
+
+  # Security headers
+  headers:
+    # Content Security Policy
+    contentSecurityPolicy:
+      default-src: "'self'"
+      script-src: "'self'"
+      style-src: "'self' 'unsafe-inline'"
+      img-src: "'self' data: https:"
+      font-src: "'self'"
+      connect-src: "'self'"
+      frame-ancestors: "'none'"
+      
+    # Other security headers
+    additionalHeaders:
+      X-Content-Type-Options: "nosniff"
+      X-Frame-Options: "DENY"
+      X-XSS-Protection: "1; mode=block"
+      Referrer-Policy: "strict-origin-when-cross-origin"
+      Permissions-Policy: "geolocation=(), microphone=(), camera=()"
+
+  # IP whitelist/blacklist
+  ipFiltering:
+    enabled: ${env:IP_FILTERING_ENABLED, 'false'}
+    
+    # Whitelist (only these IPs allowed)
+    whitelist:
+      - ${env:ADMIN_IP_1, ''}
+      - ${env:ADMIN_IP_2, ''}
+      
+    # Blacklist (these IPs blocked)  
+    blacklist:
+      - "0.0.0.0/8"
+      - "127.0.0.0/8"
+      - "169.254.0.0/16"
+      - "224.0.0.0/4"
+      
+  # Bot protection
+  botProtection:
+    enabled: true
+    
+    # User agent patterns to block
+    blockedUserAgents:
+      - "(?i)bot"
+      - "(?i)crawler" 
+      - "(?i)spider"
+      - "(?i)scraper"
+      
+    # Rate limiting for suspected bots
+    botRateLimit:
+      windowMs: 60000
+      maxRequests: 10
+
+  # Audit logging
+  auditLogging:
+    enabled: true
+    
+    # Events to log
+    logEvents:
+      - authentication
+      - authorization
+      - data-access
+      - data-modification
+      - admin-actions
+      - security-violations
+      
+    # Log retention
+    retentionDays: 90
+    
+    # Log format
+    format: "json"
+    
+    # Sensitive data masking
+    maskSensitiveData: true
+    sensitiveFields:
+      - password
+      - token
+      - apiKey
+      - ssn
+      - creditCard

@@ -1,0 +1,237 @@
+# ================================================================
+# config/api-gateway.yml - API Gateway Configuration
+# ================================================================
+
+# API Gateway Resource Policy (for IP restrictions, VPC access, etc.)
+apiGateway:
+  # Custom domain configuration
+  customDomain:
+    domainName: ${env:DOMAIN_NAME, ''}
+    certificateArn: ${env:SSL_CERTIFICATE_ARN, ''}
+    hostedZoneId: ${env:HOSTED_ZONE_ID, ''}
+    
+  # Request/Response transformation
+  requestTemplates:
+    application/json: |
+      {
+        "httpMethod": "$context.httpMethod",
+        "resourcePath": "$context.resourcePath", 
+        "path": "$context.path",
+        "queryStringParameters": {
+          #foreach($param in $input.params().querystring.keySet())
+          "$param": "$util.escapeJavaScript($input.params().querystring.get($param))"#if($foreach.hasNext),#end
+          #end
+        },
+        "pathParameters": {
+          #foreach($param in $input.params().path.keySet())
+          "$param": "$util.escapeJavaScript($input.params().path.get($param))"#if($foreach.hasNext),#end
+          #end
+        },
+        "headers": {
+          #foreach($param in $input.params().header.keySet())
+          "$param": "$util.escapeJavaScript($input.params().header.get($param))"#if($foreach.hasNext),#end
+          #end
+        },
+        "body": $input.json('$'),
+        "requestContext": {
+          "requestId": "$context.requestId",
+          "stage": "$context.stage",
+          "resourceId": "$context.resourceId",
+          "httpMethod": "$context.httpMethod",
+          "resourcePath": "$context.resourcePath",
+          "path": "$context.path",
+          "accountId": "$context.accountId",
+          "apiId": "$context.apiId",
+          "identity": {
+            "sourceIp": "$context.identity.sourceIp",
+            "userAgent": "$context.identity.userAgent",
+            "accessKey": "$context.identity.accessKey",
+            "caller": "$context.identity.caller",
+            "cognitoAuthenticationProvider": "$context.identity.cognitoAuthenticationProvider",
+            "cognitoAuthenticationType": "$context.identity.cognitoAuthenticationType",
+            "cognitoIdentityId": "$context.identity.cognitoIdentityId",
+            "cognitoIdentityPoolId": "$context.identity.cognitoIdentityPoolId",
+            "principalOrgId": "$context.identity.principalOrgId",
+            "user": "$context.identity.user",
+            "userArn": "$context.identity.userArn"
+          }
+        }
+      }
+
+  # Response transformation
+  responseTemplates:
+    application/json: |
+      #set($origin = $input.params("origin"))
+      #if($origin == "")
+        #set($origin = $input.params("Origin"))
+      #end
+      #if($origin.matches("https://.*\.(localhost|127\.0\.0\.1).*") || $origin.matches("https://.*\.your-domain\.com"))
+        #set($context.responseOverride.header.Access-Control-Allow-Origin = $origin)
+      #else
+        #set($context.responseOverride.header.Access-Control-Allow-Origin = "*")
+      #end
+      $input.json('$')
+
+  # Throttling configuration
+  throttling:
+    burstLimit: 1000
+    rateLimit: 500
+
+  # Usage plans and API keys
+  usagePlan:
+    - name: basic-plan
+      description: Basic usage plan for My Many Books API
+      quota:
+        limit: 10000
+        period: MONTH
+      throttle:
+        burstLimit: 100
+        rateLimit: 50
+    - name: premium-plan  
+      description: Premium usage plan for My Many Books API
+      quota:
+        limit: 100000
+        period: MONTH
+      throttle:
+        burstLimit: 500
+        rateLimit: 200
+
+  # Request validation
+  requestValidation:
+    validateRequestBody: true
+    validateRequestParameters: true
+    
+  # Documentation configuration  
+  documentation:
+    api:
+      info:
+        version: "1.0.0"
+        title: "My Many Books API"
+        description: "Personal library management system API"
+        contact:
+          name: "API Support"
+          email: "support@mymanybooks.com"
+        license:
+          name: "MIT"
+      tags:
+        - name: "books"
+          description: "Book management operations"
+        - name: "authors"
+          description: "Author management operations"
+        - name: "categories"
+          description: "Category management operations"
+        - name: "isbn"
+          description: "ISBN lookup and validation services"
+        - name: "health"
+          description: "Health check endpoints"
+
+  # Model definitions for request/response validation
+  models:
+    - name: BookRequest
+      description: Request model for creating/updating books
+      schema:
+        type: object
+        required:
+          - isbnCode
+          - title
+        properties:
+          isbnCode:
+            type: string
+            pattern: "^(97[89])?\\d{9}[\\dX]$"
+          title:
+            type: string
+            maxLength: 500
+          editionNumber:
+            type: integer
+            minimum: 1
+          editionDate:
+            type: string
+            format: date
+          status:
+            type: string
+            enum: ["available", "reading", "read", "wishlist"]
+          notes:
+            type: string
+            maxLength: 1000
+            
+    - name: AuthorRequest
+      description: Request model for creating/updating authors
+      schema:
+        type: object
+        required:
+          - name
+          - surname
+        properties:
+          name:
+            type: string
+            maxLength: 100
+          surname:
+            type: string
+            maxLength: 100
+          nationality:
+            type: string
+            maxLength: 100
+            
+    - name: CategoryRequest
+      description: Request model for creating/updating categories
+      schema:
+        type: object
+        required:
+          - name
+        properties:
+          name:
+            type: string
+            maxLength: 255
+            
+    - name: ErrorResponse
+      description: Standard error response model
+      schema:
+        type: object
+        required:
+          - success
+          - error
+        properties:
+          success:
+            type: boolean
+            enum: [false]
+          error:
+            type: string
+          message:
+            type: string
+          details:
+            type: object
+          requestId:
+            type: string
+            
+    - name: SuccessResponse
+      description: Standard success response model  
+      schema:
+        type: object
+        required:
+          - success
+        properties:
+          success:
+            type: boolean
+            enum: [true]
+          data:
+            type: object
+          message:
+            type: string
+          meta:
+            type: object
+            properties:
+              pagination:
+                type: object
+                properties:
+                  page:
+                    type: integer
+                  limit:
+                    type: integer
+                  totalCount:
+                    type: integer
+                  totalPages:
+                    type: integer
+                  hasNext:
+                    type: boolean
+                  hasPrev:
+                    type: boolean

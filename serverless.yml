@@ -13,6 +13,8 @@ provider:
   stage: ${opt:stage, 'dev'}
   memorySize: 512
   timeout: 30
+  
+  # Environment variables
   environment:
     NODE_ENV: ${self:provider.stage}
     DB_HOST: ${env:DB_HOST}
@@ -23,6 +25,79 @@ provider:
     DB_SSL: ${env:DB_SSL, 'true'}
     API_VERSION: ${env:API_VERSION, '1.0.0'}
     LOG_LEVEL: ${env:LOG_LEVEL, 'info'}
+    
+    # Security settings
+    API_KEYS_ENABLED: ${env:API_KEYS_ENABLED, 'false'}
+    COGNITO_ENABLED: ${env:COGNITO_ENABLED, 'false'}
+    COGNITO_USER_POOL_ID: ${env:COGNITO_USER_POOL_ID, ''}
+    COGNITO_CLIENT_ID: ${env:COGNITO_CLIENT_ID, ''}
+    
+    # External service settings
+    OPEN_LIBRARY_BASE_URL: ${env:OPEN_LIBRARY_BASE_URL, 'https://openlibrary.org'}
+    GOOGLE_BOOKS_API_KEY: ${env:GOOGLE_BOOKS_API_KEY, ''}
+    GOOGLE_BOOKS_BASE_URL: ${env:GOOGLE_BOOKS_BASE_URL, 'https://www.googleapis.com/books/v1'}
+    
+    # Performance settings
+    CACHE_TTL: ${env:CACHE_TTL, '3600'}
+    REQUEST_TIMEOUT: ${env:REQUEST_TIMEOUT, '10000'}
+    MAX_RETRIES: ${env:MAX_RETRIES, '3'}
+
+  # API Gateway configuration
+  apiGateway:
+    restApiId: !Ref ApiGatewayRestApi
+    restApiRootResourceId: !GetAtt ApiGatewayRestApi.RootResourceId
+    description: My Many Books API - Personal library management system
+    
+    # Request/response logging
+    accessLogging: true
+    executionLogging: true
+    fullExecutionData: true
+    
+    # Request validation
+    request:
+      schemas:
+        book-request-model:
+          name: BookRequest
+          description: Request model for book operations
+          schema: ${file(config/schemas/book-request.json)}
+        author-request-model:
+          name: AuthorRequest  
+          description: Request model for author operations
+          schema: ${file(config/schemas/author-request.json)}
+        category-request-model:
+          name: CategoryRequest
+          description: Request model for category operations
+          schema: ${file(config/schemas/category-request.json)}
+    
+    # API documentation
+    documentation: ${file(config/api-gateway.yml):apiGateway.documentation}
+    
+    # Usage plans
+    usagePlan:
+      - basic:
+          quota:
+            limit: 10000
+            offset: 0
+            period: MONTH
+          throttle:
+            burstLimit: 100
+            rateLimit: 50
+          apiStages:
+            - api: !Ref ApiGatewayRestApi
+              stage: ${self:provider.stage}
+      - premium:
+          quota:
+            limit: 100000
+            offset: 0
+            period: MONTH
+          throttle:
+            burstLimit: 500
+            rateLimit: 200
+          apiStages:
+            - api: !Ref ApiGatewayRestApi
+              stage: ${self:provider.stage}
+
+  # IAM permissions
   iam:
     role:
       statements:
@@ -32,6 +107,24 @@ provider:
             - logs:CreateLogStream
             - logs:PutLogEvents
           Resource: 'arn:aws:logs:*:*:*'
+        - Effect: Allow
+          Action:
+            - apigateway:GET
+            - apigateway:POST
+            - apigateway:PUT
+            - apigateway:DELETE
+          Resource: 'arn:aws:apigateway:*::/restapis/*'
+        - Effect: Allow
+          Action:
+            - execute-api:Invoke
+          Resource: 'arn:aws:execute-api:*:*:*'
+
+  # Tags for resource management  
+  tags:
+    Project: my-many-books
+    Environment: ${self:provider.stage}
+    Service: api
+    CreatedBy: serverless
 
 plugins:
   - serverless-esbuild

@@ -1,0 +1,1330 @@
+# ================================================================
+# docs/api-specification.yml - OpenAPI 3.0 Specification
+# ================================================================
+
+openapi: 3.0.3
+info:
+  title: My Many Books API
+  description: |
+    Personal library management system API for tracking books, authors, and categories.
+    
+    ## Features
+    - Book management with ISBN integration
+    - Author and category management
+    - ISBN lookup and validation services
+    - Comprehensive search capabilities
+    - Rate limiting and authentication
+    
+    ## Authentication
+    This API supports multiple authentication methods:
+    - API Key authentication via `X-Api-Key` header
+    - AWS Cognito JWT tokens (optional)
+    
+    ## Rate Limiting
+    - Global: 1000 requests/minute per IP
+    - API endpoints: 100 requests/minute per IP per endpoint
+    - Heavy operations: 30 requests/minute per IP
+    
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@mymanybooks.com
+    url: https://mymanybooks.com/support
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.mymanybooks.com/dev
+    description: Development server
+  - url: https://api.mymanybooks.com/prod
+    description: Production server
+  - url: http://localhost:3000
+    description: Local development
+
+security:
+  - ApiKeyAuth: []
+  - CognitoAuth: []
+
+tags:
+  - name: books
+    description: Book management operations
+  - name: authors
+    description: Author management operations
+  - name: categories
+    description: Category management operations
+  - name: isbn
+    description: ISBN lookup and validation services
+  - name: health
+    description: Health check endpoints
+
+paths:
+  # Health endpoints
+  /health:
+    get:
+      tags: [health]
+      summary: Basic health check
+      description: Returns basic health status of the API
+      responses:
+        '200':
+          $ref: '#/components/responses/HealthResponse'
+
+  /readiness:
+    get:
+      tags: [health]
+      summary: Readiness check
+      description: Returns detailed readiness status including dependencies
+      responses:
+        '200':
+          $ref: '#/components/responses/ReadinessResponse'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  # Book endpoints
+  /books:
+    get:
+      tags: [books]
+      summary: List books
+      description: Retrieve a paginated list of books with optional filtering
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/SearchParam'
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [available, reading, read, wishlist]
+          description: Filter by book status
+        - in: query
+          name: authorId
+          schema:
+            type: integer
+          description: Filter by author ID
+        - in: query
+          name: categoryId
+          schema:
+            type: integer
+          description: Filter by category ID
+      responses:
+        '200':
+          $ref: '#/components/responses/BookListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+    post:
+      tags: [books]
+      summary: Create book
+      description: Create a new book entry
+      requestBody:
+        $ref: '#/components/requestBodies/BookRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/BookResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /books/{id}:
+    parameters:
+      - $ref: '#/components/parameters/BookIdParam'
+
+    get:
+      tags: [books]
+      summary: Get book by ID
+      description: Retrieve a specific book by its ID
+      responses:
+        '200':
+          $ref: '#/components/responses/BookResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+    put:
+      tags: [books]
+      summary: Update book
+      description: Update an existing book
+      requestBody:
+        $ref: '#/components/requestBodies/BookUpdateRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/BookResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+    delete:
+      tags: [books]
+      summary: Delete book
+      description: Delete a book by ID
+      responses:
+        '204':
+          description: Book deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /books/search/isbn:
+    get:
+      tags: [books]
+      summary: Search books by ISBN
+      description: Search for books in the library by ISBN
+      parameters:
+        - in: query
+          name: isbn
+          required: true
+          schema:
+            type: string
+            pattern: '^(97[89])?\\d{9}[\\dX]$'
+          description: ISBN to search for
+      responses:
+        '200':
+          $ref: '#/components/responses/BookListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /books/import/isbn:
+    post:
+      tags: [books]
+      summary: Import book from ISBN
+      description: Import book data from external ISBN services
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [isbn]
+              properties:
+                isbn:
+                  type: string
+                  pattern: '^(97[89])?\\d{9}[\\dX]$'
+                  description: ISBN to import
+      responses:
+        '201':
+          $ref: '#/components/responses/BookResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  # Author endpoints
+  /authors:
+    get:
+      tags: [authors]
+      summary: List authors
+      description: Retrieve a paginated list of authors
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/SearchParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/AuthorListResponse'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+    post:
+      tags: [authors]
+      summary: Create author
+      description: Create a new author entry
+      requestBody:
+        $ref: '#/components/requestBodies/AuthorRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/AuthorResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /authors/{id}:
+    parameters:
+      - $ref: '#/components/parameters/AuthorIdParam'
+
+    get:
+      tags: [authors]
+      summary: Get author by ID
+      description: Retrieve a specific author by ID
+      responses:
+        '200':
+          $ref: '#/components/responses/AuthorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+    put:
+      tags: [authors]
+      summary: Update author
+      description: Update an existing author
+      requestBody:
+        $ref: '#/components/requestBodies/AuthorUpdateRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/AuthorResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+    delete:
+      tags: [authors]
+      summary: Delete author
+      description: Delete an author by ID
+      parameters:
+        - in: query
+          name: force
+          schema:
+            type: boolean
+            default: false
+          description: Force deletion even if author has associated books
+      responses:
+        '204':
+          description: Author deleted successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /authors/{id}/books:
+    parameters:
+      - $ref: '#/components/parameters/AuthorIdParam'
+
+    get:
+      tags: [authors]
+      summary: Get books by author
+      description: Retrieve all books by a specific author
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/AuthorBooksResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  # Category endpoints
+  /categories:
+    get:
+      tags: [categories]
+      summary: List categories
+      description: Retrieve a paginated list of categories
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/SearchParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/CategoryListResponse'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+    post:
+      tags: [categories]
+      summary: Create category
+      description: Create a new category
+      requestBody:
+        $ref: '#/components/requestBodies/CategoryRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/CategoryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /categories/{id}:
+    parameters:
+      - $ref: '#/components/parameters/CategoryIdParam'
+
+    get:
+      tags: [categories]
+      summary: Get category by ID
+      description: Retrieve a specific category by ID
+      responses:
+        '200':
+          $ref: '#/components/responses/CategoryResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+    put:
+      tags: [categories]
+      summary: Update category
+      description: Update an existing category
+      requestBody:
+        $ref: '#/components/requestBodies/CategoryUpdateRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/CategoryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+    delete:
+      tags: [categories]
+      summary: Delete category
+      description: Delete a category by ID
+      parameters:
+        - in: query
+          name: force
+          schema:
+            type: boolean
+            default: false
+          description: Force deletion even if category has associated books
+      responses:
+        '204':
+          description: Category deleted successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /categories/{id}/books:
+    parameters:
+      - $ref: '#/components/parameters/CategoryIdParam'
+
+    get:
+      tags: [categories]
+      summary: Get books in category
+      description: Retrieve all books in a specific category
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/CategoryBooksResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  # ISBN service endpoints
+  /isbn/lookup:
+    get:
+      tags: [isbn]
+      summary: Lookup book by ISBN
+      description: Look up book information from external services
+      parameters:
+        - in: query
+          name: isbn
+          required: true
+          schema:
+            type: string
+            pattern: '^(97[89])?\\d{9}[\\dX]$'
+          description: ISBN to lookup
+      responses:
+        '200':
+          $ref: '#/components/responses/IsbnLookupResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+    post:
+      tags: [isbn]
+      summary: Batch ISBN lookup
+      description: Look up multiple ISBNs at once
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [isbns]
+              properties:
+                isbns:
+                  type: array
+                  items:
+                    type: string
+                    pattern: '^(97[89])?\\d{9}[\\dX]$'
+                  maxItems: 10
+                  description: Array of ISBNs to lookup (max 10)
+      responses:
+        '200':
+          $ref: '#/components/responses/BatchIsbnLookupResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /isbn/search:
+    get:
+      tags: [isbn]
+      summary: Search books by title
+      description: Search for books by title in external services
+      parameters:
+        - in: query
+          name: title
+          required: true
+          schema:
+            type: string
+            minLength: 3
+            maxLength: 100
+          description: Book title to search for
+        - in: query
+          name: author
+          schema:
+            type: string
+            maxLength: 100
+          description: Author name to filter results
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          $ref: '#/components/responses/IsbnSearchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /isbn/validate:
+    get:
+      tags: [isbn]
+      summary: Validate ISBN
+      description: Validate ISBN format and checksum
+      parameters:
+        - in: query
+          name: isbn
+          required: true
+          schema:
+            type: string
+          description: ISBN to validate
+      responses:
+        '200':
+          $ref: '#/components/responses/IsbnValidationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /isbn/health:
+    get:
+      tags: [isbn]
+      summary: ISBN service health
+      description: Check health of external ISBN services
+      responses:
+        '200':
+          $ref: '#/components/responses/IsbnHealthResponse'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+      description: API key for authentication
+
+    CognitoAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: AWS Cognito JWT token
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number for pagination
+
+    LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: Number of items per page
+
+    SearchParam:
+      name: search
+      in: query
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
+      description: Search query
+
+    BookIdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+      description: Book ID
+
+    AuthorIdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+      description: Author ID
+
+    CategoryIdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+      description: Category ID
+
+  schemas:
+    Book:
+      type: object
+      required: [id, isbnCode, title, creationDate, updateDate]
+      properties:
+        id:
+          type: integer
+          description: Unique book identifier
+        isbnCode:
+          type: string
+          pattern: '^(97[89])?\\d{9}[\\dX]$'
+          description: Book ISBN code
+        title:
+          type: string
+          maxLength: 500
+          description: Book title
+        editionNumber:
+          type: integer
+          minimum: 1
+          description: Edition number
+        editionDate:
+          type: string
+          format: date
+          description: Edition publication date
+        status:
+          type: string
+          enum: [available, reading, read, wishlist]
+          description: Reading status
+        notes:
+          type: string
+          maxLength: 1000
+          description: Personal notes
+        creationDate:
+          type: string
+          format: date-time
+          description: Record creation date
+        updateDate:
+          type: string
+          format: date-time
+          description: Last update date
+        authors:
+          type: array
+          items:
+            $ref: '#/components/schemas/Author'
+          description: Book authors
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+          description: Book categories
+
+    Author:
+      type: object
+      required: [id, name, surname, creationDate, updateDate]
+      properties:
+        id:
+          type: integer
+          description: Unique author identifier
+        name:
+          type: string
+          maxLength: 100
+          description: Author first name
+        surname:
+          type: string
+          maxLength: 100
+          description: Author last name
+        nationality:
+          type: string
+          maxLength: 100
+          description: Author nationality
+        creationDate:
+          type: string
+          format: date-time
+          description: Record creation date
+        updateDate:
+          type: string
+          format: date-time
+          description: Last update date
+
+    Category:
+      type: object
+      required: [id, name, creationDate, updateDate]
+      properties:
+        id:
+          type: integer
+          description: Unique category identifier
+        name:
+          type: string
+          maxLength: 255
+          description: Category name
+        creationDate:
+          type: string
+          format: date-time
+          description: Record creation date
+        updateDate:
+          type: string
+          format: date-time
+          description: Last update date
+
+    IsbnBookInfo:
+      type: object
+      properties:
+        isbn:
+          type: string
+          description: Book ISBN
+        title:
+          type: string
+          description: Book title
+        authors:
+          type: array
+          items:
+            type: string
+          description: Book authors
+        publisher:
+          type: string
+          description: Publisher name
+        publishedDate:
+          type: string
+          description: Publication date
+        description:
+          type: string
+          description: Book description
+        pageCount:
+          type: integer
+          description: Number of pages
+        language:
+          type: string
+          description: Book language
+        categories:
+          type: array
+          items:
+            type: string
+          description: Book categories
+        thumbnail:
+          type: string
+          format: uri
+          description: Cover thumbnail URL
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          description: Current page number
+        limit:
+          type: integer
+          description: Items per page
+        totalCount:
+          type: integer
+          description: Total number of items
+        totalPages:
+          type: integer
+          description: Total number of pages
+        hasNext:
+          type: boolean
+          description: Whether there is a next page
+        hasPrev:
+          type: boolean
+          description: Whether there is a previous page
+
+    Error:
+      type: object
+      required: [success, error]
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        error:
+          type: string
+          description: Error message
+        message:
+          type: string
+          description: Detailed error description
+        code:
+          type: string
+          description: Error code
+        details:
+          type: object
+          description: Additional error details
+        requestId:
+          type: string
+          description: Request identifier
+
+  requestBodies:
+    BookRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [isbnCode, title]
+            properties:
+              isbnCode:
+                type: string
+                pattern: '^(97[89])?\\d{9}[\\dX]$'
+              title:
+                type: string
+                maxLength: 500
+              editionNumber:
+                type: integer
+                minimum: 1
+              editionDate:
+                type: string
+                format: date
+              status:
+                type: string
+                enum: [available, reading, read, wishlist]
+              notes:
+                type: string
+                maxLength: 1000
+
+    BookUpdateRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              title:
+                type: string
+                maxLength: 500
+              editionNumber:
+                type: integer
+                minimum: 1
+              editionDate:
+                type: string
+                format: date
+              status:
+                type: string
+                enum: [available, reading, read, wishlist]
+              notes:
+                type: string
+                maxLength: 1000
+
+    AuthorRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [name, surname]
+            properties:
+              name:
+                type: string
+                maxLength: 100
+              surname:
+                type: string
+                maxLength: 100
+              nationality:
+                type: string
+                maxLength: 100
+
+    AuthorUpdateRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name:
+                type: string
+                maxLength: 100
+              surname:
+                type: string
+                maxLength: 100
+              nationality:
+                type: string
+                maxLength: 100
+
+    CategoryRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [name]
+            properties:
+              name:
+                type: string
+                maxLength: 255
+
+    CategoryUpdateRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name:
+                type: string
+                maxLength: 255
+
+  responses:
+    # Success responses
+    BookResponse:
+      description: Book data
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                enum: [true]
+              data:
+                $ref: '#/components/schemas/Book'
+              message:
+                type: string
+
+    BookListResponse:
+      description: List of books with pagination
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                enum: [true]
+              data:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Book'
+              meta:
+                type: object
+                properties:
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    AuthorResponse:
+      description: Author data
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                enum: [true]
+              data:
+                $ref: '#/components/schemas/Author'
+              message:
+                type: string
+
+    AuthorListResponse:
+      description: List of authors with pagination
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                enum: [true]
+              data:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Author'
+              meta:
+                type: object
+                properties:
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    AuthorBooksResponse:
+      description: Books by author with pagination
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                enum: [true]
+              data:
+                type: object
+                properties:
+                  author:
+                    $ref: '#/components/schemas/Author'
+                  books:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Book'
+              meta:
+                type: object
+                properties:
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    CategoryResponse:
+      description: Category data
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                enum: [true]
+              data:
+                $ref: '#/components/schemas/Category'
+              message:
+                type: string
+
+    CategoryListResponse:
+      description: List of categories with pagination
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                enum: [true]
+              data:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+              meta:
+                type: object
+                properties:
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    CategoryBooksResponse:
+      description: Books in category with pagination
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                enum: [true]
+              data:
+                type: object
+                properties:
+                  category:
+                    $ref: '#/components/schemas/Category'
+                  books:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Book'
+              meta:
+                type: object
+                properties:
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    IsbnLookupResponse:
+      description: ISBN lookup result
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                enum: [true]
+              data:
+                $ref: '#/components/schemas/IsbnBookInfo'
+
+    BatchIsbnLookupResponse:
+      description: Batch ISBN lookup results
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                enum: [true]
+              data:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    isbn:
+                      type: string
+                    found:
+                      type: boolean
+                    data:
+                      $ref: '#/components/schemas/IsbnBookInfo'
+                    error:
+                      type: string
+
+    IsbnSearchResponse:
+      description: ISBN search results
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                enum: [true]
+              data:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IsbnBookInfo'
+              meta:
+                type: object
+                properties:
+                  totalResults:
+                    type: integer
+
+    IsbnValidationResponse:
+      description: ISBN validation result
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                enum: [true]
+              data:
+                type: object
+                properties:
+                  isbn:
+                    type: string
+                  isValid:
+                    type: boolean
+                  format:
+                    type: string
+                    enum: [ISBN-10, ISBN-13]
+                  formatted:
+                    type: string
+                  errors:
+                    type: array
+                    items:
+                      type: string
+
+    IsbnHealthResponse:
+      description: ISBN services health status
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                enum: [true]
+              data:
+                type: object
+                properties:
+                  services:
+                    type: object
+                    properties:
+                      openLibrary:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+                            enum: [healthy, degraded, unhealthy]
+                          responseTime:
+                            type: integer
+                          lastCheck:
+                            type: string
+                            format: date-time
+                      googleBooks:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+                            enum: [healthy, degraded, unhealthy]
+                          responseTime:
+                            type: integer
+                          lastCheck:
+                            type: string
+                            format: date-time
+                  overallStatus:
+                    type: string
+                    enum: [healthy, degraded, unhealthy]
+
+    HealthResponse:
+      description: Basic health check response
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                enum: [true]
+              message:
+                type: string
+              timestamp:
+                type: string
+                format: date-time
+              version:
+                type: string
+              uptime:
+                type: number
+
+    ReadinessResponse:
+      description: Readiness check response
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                enum: [true]
+              data:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ready, not-ready]
+                  timestamp:
+                    type: string
+                    format: date-time
+                  checks:
+                    type: object
+                    properties:
+                      database:
+                        type: boolean
+                      isbnService:
+                        type: boolean
+                      memory:
+                        type: object
+                        properties:
+                          rss:
+                            type: integer
+                          heapTotal:
+                            type: integer
+                          heapUsed:
+                            type: integer
+                          external:
+                            type: integer
+
+    # Error responses
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: "Validation failed"
+            code: "VALIDATION_ERROR"
+            details:
+              field: "isbn"
+              message: "Invalid ISBN format"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: "Resource not found"
+            code: "NOT_FOUND"
+
+    Conflict:
+      description: Conflict - resource already exists
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: "Resource already exists"
+            code: "CONFLICT"
+
+    RateLimitExceeded:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds to wait before retrying
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+          description: Request limit per window
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+          description: Remaining requests in current window
+        X-RateLimit-Reset:
+          schema:
+            type: string
+            format: date-time
+          description: Time when rate limit resets
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: "Rate limit exceeded"
+            message: "Too many requests. Limit: 100 per 60s"
+            code: "RATE_LIMIT_EXCEEDED"
+            retryAfter: 30
+
+    ServiceUnavailable:
+      description: Service temporarily unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: "Service Unavailable"
+            code: "SERVICE_UNAVAILABLE"
