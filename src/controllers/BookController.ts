@@ -12,6 +12,7 @@ import { BookCategory } from '../models/BookCategory';
 import { isbnService } from '../services/isbnService';
 import { validateIsbn } from '../utils/isbn';
 import { AuthenticatedRequest } from '../middleware/auth';
+import { BookCreationAttributes } from '../models/interfaces/ModelInterfaces';
 
 interface CreateBookRequest {
   title: string;
@@ -624,6 +625,11 @@ export class BookController extends BaseController {
         return;
       }
 
+      if (!req.body) {
+        res.status(400).json({ error: 'Request body is required' });
+        return;
+      }
+
       const { 
         title, 
         isbnCode, 
@@ -645,7 +651,7 @@ export class BookController extends BaseController {
         return;
       }
 
-      if (!validateIsbn(isbnCode)) {
+      if (!validateIsbn(isbnCode).isValid) {
         res.status(400).json({ error: 'Invalid ISBN format' });
         return;
       }
@@ -659,7 +665,7 @@ export class BookController extends BaseController {
         return;
       }
 
-      const book = await Book.create({
+      const bookData: BookCreationAttributes = {
         title,
         isbnCode,
         editionNumber: editionNumber || undefined,
@@ -667,7 +673,9 @@ export class BookController extends BaseController {
         status: status || undefined,
         notes: notes || undefined,
         userId: req.user.userId,
-      });
+      };
+
+      const book = await Book.create(bookData as any);
 
       if (authorIds.length > 0) {
         for (const authorId of authorIds) {
@@ -828,19 +836,19 @@ export class BookController extends BaseController {
 
       const { isbn } = req.params;
 
-      if (!validateIsbn(isbn)) {
+      if (!isbn || !validateIsbn(isbn).isValid) {
         res.status(400).json({ error: 'Invalid ISBN format' });
         return;
       }
 
       const bookData = await isbnService.lookupBook(isbn);
 
-      if (!bookData) {
+      if (!bookData.success) {
         res.status(404).json({ error: 'Book not found in external databases' });
         return;
       }
 
-      res.status(200).json(bookData);
+      res.status(200).json(bookData.book);
     } catch (error) {
       console.error('Error searching book by ISBN:', error);
       res.status(500).json({ 

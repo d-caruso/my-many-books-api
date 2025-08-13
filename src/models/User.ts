@@ -5,7 +5,7 @@
 
 import { DataTypes, Association } from 'sequelize';
 import { IdBaseModel } from './base/IdBaseModel';
-import { UserAttributes, UserCreationAttributes } from './interfaces/ModelInterfaces';
+import { UserAttributes } from './interfaces/ModelInterfaces';
 import { Book } from './Book';
 
 export class User extends IdBaseModel<UserAttributes> implements UserAttributes {
@@ -18,7 +18,7 @@ export class User extends IdBaseModel<UserAttributes> implements UserAttributes 
   public books?: Book[];
 
   // Association definitions
-  public static associations: {
+  public static override associations: {
     books: Association<User, Book>;
   };
 
