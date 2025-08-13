@@ -6,44 +6,26 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import Joi from 'joi';
 import { BaseController } from './base/BaseController';
 import { Category, Book } from '../models';
+import { CategoryCreationAttributes } from '../models/interfaces/ModelInterfaces';
 
 interface CreateCategoryRequest {
   name: string;
-  type?: string;
-  description?: string;
-  color?: string;
-  parentCategoryId?: number;
 }
 
-interface UpdateCategoryRequest extends Partial<CreateCategoryRequest> {
-  id: number;
-}
-
-interface CategorySearchFilters {
+interface UpdateCategoryRequest {
   name?: string;
-  type?: string;
-  parentId?: number;
 }
+
 
 export class CategoryController extends BaseController {
   private readonly createCategorySchema = Joi.object<CreateCategoryRequest>({
-    name: Joi.string().required().max(100).trim(),
-    type: Joi.string().max(50).optional().trim(),
-    description: Joi.string().max(500).optional().trim(),
-    color: Joi.string().pattern(/^#[0-9A-Fa-f]{6}$/).optional().message('Color must be a valid hex color (e.g., #FF0000)'),
-    parentCategoryId: Joi.number().integer().positive().optional(),
+    name: Joi.string().required().max(255).trim(),
   });
 
-  private readonly updateCategorySchema = this.createCategorySchema.keys({
-    id: Joi.number().integer().positive().required(),
-    name: Joi.string().max(100).trim().optional(),
+  private readonly updateCategorySchema = Joi.object<UpdateCategoryRequest>({
+    name: Joi.string().max(255).trim().optional(),
   });
 
-  private readonly searchFiltersSchema = Joi.object<CategorySearchFilters>({
-    name: Joi.string().max(100).optional().trim(),
-    type: Joi.string().max(50).optional().trim(),
-    parentId: Joi.number().integer().positive().optional(),
-  });
 
   async createCategory(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
     return this.handleRequest(event, async () => {
@@ -60,10 +42,7 @@ export class CategoryController extends BaseController {
       const categoryData = validation.value!;
 
       // Check if category already exists
-      const existingCategory = await Category.findOne({
-        where: { name: categoryData.name },
-      });
-
+      const existingCategory = await Category.findByName(categoryData.name);
       if (existingCategory) {
         return this.createErrorResponse(
           'Category with this name already exists',
@@ -71,100 +50,79 @@ export class CategoryController extends BaseController {
         );
       }
 
-      // Validate parent category if provided
-      if (categoryData.parentCategoryId) {
-        const parentCategory = await Category.findByPk(categoryData.parentCategoryId);
-        if (!parentCategory) {
-          return this.createErrorResponse('Parent category not found', 400);
-        }
-      }
-
       // Create category
-      const category = await Category.create({
+      const category = await Category.createCategory({
         name: categoryData.name,
-        type: categoryData.type,
-        description: categoryData.description,
-        color: categoryData.color,
-        parentCategoryId: categoryData.parentCategoryId,
-      });
+      } as CategoryCreationAttributes);
 
-      // Fetch category with parent if it exists
-      const createdCategory = await Category.findByPk(category.id, {
-        include: categoryData.parentCategoryId ? [
-          { model: Category, as: 'parentCategory' }
-        ] : [],
-      });
-
-      return this.createSuccessResponse(createdCategory, 'Category created successfully', undefined, 201);
+      return this.createSuccessResponse(category, 'Category created successfully', undefined, 201);
     });
   }
 
   async getCategory(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
     return this.handleRequest(event, async () => {
       const categoryId = this.getPathParameter(event, 'id');
-      if (!categoryId || isNaN(Number(categoryId))) {
-        return this.createErrorResponse('Valid category ID is required', 400);
+      if (!categoryId) {
+        return this.createErrorResponse('Category ID is required', 400);
       }
 
-      const includeBooks = this.getQueryParameter(event, 'includeBooks') === 'true';
-      const includeChildren = this.getQueryParameter(event, 'includeChildren') === 'true';
-
-      const includeClause: any[] = [
-        { model: Category, as: 'parentCategory' }
-      ];
-
-      if (includeBooks) {
-        includeClause.push({ model: Book, through: { attributes: [] } });
+      const id = parseInt(categoryId, 10);
+      if (isNaN(id)) {
+        return this.createErrorResponse('Invalid category ID', 400);
       }
 
-      if (includeChildren) {
-        includeClause.push({ model: Category, as: 'subcategories' });
-      }
-
-      const category = await Category.findByPk(Number(categoryId), {
-        include: includeClause,
+      const category = await Category.findByPk(id, {
+        include: [
+          {
+            model: Book,
+            as: 'Books',
+            required: false,
+          },
+        ],
       });
 
       if (!category) {
         return this.createErrorResponse('Category not found', 404);
       }
 
-      return this.createSuccessResponse(category);
+      return this.createSuccessResponse(category, 'Category retrieved successfully');
     });
   }
 
   async updateCategory(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
     return this.handleRequest(event, async () => {
       const categoryId = this.getPathParameter(event, 'id');
-      if (!categoryId || isNaN(Number(categoryId))) {
-        return this.createErrorResponse('Valid category ID is required', 400);
+      if (!categoryId) {
+        return this.createErrorResponse('Category ID is required', 400);
       }
 
-      const body = this.parseBody<Partial<CreateCategoryRequest>>(event);
+      const id = parseInt(categoryId, 10);
+      if (isNaN(id)) {
+        return this.createErrorResponse('Invalid category ID', 400);
+      }
+
+      const body = this.parseBody<UpdateCategoryRequest>(event);
       if (!body) {
         return this.createErrorResponse('Request body is required', 400);
       }
 
-      const updateData = { ...body, id: Number(categoryId) };
-      const validation = this.validateRequest(updateData, this.updateCategorySchema);
+      const validation = this.validateRequest(body, this.updateCategorySchema);
       if (!validation.isValid) {
         return this.createErrorResponse('Validation failed', 400, validation.errors);
       }
 
-      const category = await Category.findByPk(Number(categoryId));
+      const categoryData = validation.value!;
+
+      // Find the category
+      const category = await Category.findByPk(id);
       if (!category) {
         return this.createErrorResponse('Category not found', 404);
       }
 
-      const categoryData = validation.value!;
-
-      // Check if name is being changed and if it conflicts
+      // Check if new name already exists (if name is being changed)
       if (categoryData.name && categoryData.name !== category.name) {
-        const existingCategory = await Category.findOne({
-          where: { name: categoryData.name },
-        });
-
-        if (existingCategory && existingCategory.id !== category.id) {
+        const existingCategory = await Category.findByName(categoryData.name);
+        if (existingCategory) {
           return this.createErrorResponse(
             'Category with this name already exists',
             409
@@ -172,68 +130,37 @@ export class CategoryController extends BaseController {
         }
       }
 
-      // Validate parent category if being changed
-      if (categoryData.parentCategoryId !== undefined) {
-        if (categoryData.parentCategoryId) {
-          // Check if parent exists
-          const parentCategory = await Category.findByPk(categoryData.parentCategoryId);
-          if (!parentCategory) {
-            return this.createErrorResponse('Parent category not found', 400);
-          }
-
-          // Prevent circular reference (category cannot be its own parent or descendant)
-          if (categoryData.parentCategoryId === category.id) {
-            return this.createErrorResponse('Category cannot be its own parent', 400);
-          }
-
-          // Check if this would create a circular reference by making this category
-          // a parent of one of its ancestors
-          let currentParent = parentCategory;
-          while (currentParent && currentParent.parentCategoryId) {
-            if (currentParent.parentCategoryId === category.id) {
-              return this.createErrorResponse(
-                'This would create a circular reference in the category hierarchy',
-                400
-              );
-            }
-            currentParent = await Category.findByPk(currentParent.parentCategoryId);
-          }
-        }
-      }
-
       // Update category
       await category.update({
         name: categoryData.name ?? category.name,
-        type: categoryData.type ?? category.type,
-        description: categoryData.description ?? category.description,
-        color: categoryData.color ?? category.color,
-        parentCategoryId: categoryData.parentCategoryId !== undefined 
-          ? categoryData.parentCategoryId 
-          : category.parentCategoryId,
       });
 
-      // Fetch updated category with parent
-      const updatedCategory = await Category.findByPk(category.id, {
-        include: [{ model: Category, as: 'parentCategory' }],
-      });
-
-      return this.createSuccessResponse(updatedCategory, 'Category updated successfully');
+      return this.createSuccessResponse(category, 'Category updated successfully');
     });
   }
 
   async deleteCategory(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
     return this.handleRequest(event, async () => {
       const categoryId = this.getPathParameter(event, 'id');
-      if (!categoryId || isNaN(Number(categoryId))) {
-        return this.createErrorResponse('Valid category ID is required', 400);
+      if (!categoryId) {
+        return this.createErrorResponse('Category ID is required', 400);
+      }
+
+      const id = parseInt(categoryId, 10);
+      if (isNaN(id)) {
+        return this.createErrorResponse('Invalid category ID', 400);
       }
 
       const force = this.getQueryParameter(event, 'force') === 'true';
 
-      const category = await Category.findByPk(Number(categoryId), {
+      // Find the category
+      const category = await Category.findByPk(id, {
         include: [
-          { model: Book, through: { attributes: [] } },
-          { model: Category, as: 'subcategories' },
+          {
+            model: Book,
+            as: 'Books',
+            required: false,
+          },
         ],
       });
 
@@ -241,164 +168,143 @@ export class CategoryController extends BaseController {
         return this.createErrorResponse('Category not found', 404);
       }
 
-      // Check if category has books
-      if (category.Books && category.Books.length > 0 && !force) {
+      // Check if category has associated books
+      const hasBooks = await Book.count({
+        include: [
+          {
+            model: Category,
+            as: 'Categories',
+            where: { id: category.id },
+          },
+        ],
+      });
+
+      if (hasBooks > 0 && !force) {
         return this.createErrorResponse(
-          'Cannot delete category with associated books. Use force=true to delete anyway or remove book associations first.',
-          409
+          'Cannot delete category that has associated books. Use force=true to delete anyway.',
+          400
         );
       }
 
-      // Check if category has subcategories
-      if (category.subcategories && category.subcategories.length > 0 && !force) {
-        return this.createErrorResponse(
-          'Cannot delete category with subcategories. Use force=true to delete anyway or remove subcategories first.',
-          409
-        );
-      }
-
-      if (force) {
-        // If force is true, move subcategories to parent or set to null
-        const subcategories = await Category.findAll({
-          where: { parentCategoryId: category.id },
-        });
-
-        for (const subcategory of subcategories) {
-          await subcategory.update({
-            parentCategoryId: category.parentCategoryId || null,
-          });
-        }
-      }
-
+      // Delete the category
       await category.destroy();
 
-      return this.createSuccessResponse(null, 'Category deleted successfully', undefined, 204);
+      return this.createSuccessResponse(
+        null,
+        'Category deleted successfully',
+        undefined,
+        204
+      );
     });
   }
 
   async listCategories(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
     return this.handleRequest(event, async () => {
-      const pagination = this.getPaginationParams(event);
-      const filters = this.getQueryParameter(event, 'filters');
-      const includeBooks = this.getQueryParameter(event, 'includeBooks') === 'true';
-      const hierarchical = this.getQueryParameter(event, 'hierarchical') === 'true';
-      
-      let searchFilters: CategorySearchFilters = {};
-      if (filters) {
-        try {
-          searchFilters = JSON.parse(filters);
-          const filterValidation = this.validateRequest(searchFilters, this.searchFiltersSchema);
-          if (!filterValidation.isValid) {
-            return this.createErrorResponse('Invalid search filters', 400, filterValidation.errors);
-          }
-          searchFilters = filterValidation.value!;
-        } catch {
-          return this.createErrorResponse('Invalid filters format. Expected JSON string.', 400);
-        }
-      }
+      const page = parseInt(this.getQueryParameter(event, 'page') || '1', 10);
+      const limit = parseInt(this.getQueryParameter(event, 'limit') || '50', 10);
+      const search = this.getQueryParameter(event, 'search');
 
-      if (hierarchical) {
-        // Return hierarchical structure (only root categories with their children)
-        const rootCategories = await Category.findAll({
-          where: { parentCategoryId: null },
-          include: [
-            {
-              model: Category,
-              as: 'subcategories',
-              include: includeBooks ? [{ model: Book, through: { attributes: [] } }] : [],
-            },
-            ...(includeBooks ? [{ model: Book, through: { attributes: [] } }] : []),
-          ],
-          order: [['name', 'ASC'], [{ model: Category, as: 'subcategories' }, 'name', 'ASC']],
+      let categories: Category[];
+      let totalCount: number;
+
+      if (search) {
+        // Search categories by name
+        categories = await Category.searchByName(search);
+        totalCount = categories.length;
+
+        // Apply pagination to search results
+        const offset = (page - 1) * limit;
+        categories = categories.slice(offset, offset + limit);
+      } else {
+        // Get all categories with pagination
+        const result = await Category.findAndCountAll({
+          order: [['name', 'ASC']],
+          limit,
+          offset: (page - 1) * limit,
         });
-
-        return this.createSuccessResponse(rootCategories);
+        categories = result.rows;
+        totalCount = result.count;
       }
 
-      // Flat list with pagination and filters
-      const whereClause: any = {};
+      const totalPages = Math.ceil(totalCount / limit);
 
-      // Apply filters
-      if (searchFilters.name) {
-        whereClause.name = { [require('sequelize').Op.iLike]: `%${searchFilters.name}%` };
-      }
-
-      if (searchFilters.type) {
-        whereClause.type = { [require('sequelize').Op.iLike]: `%${searchFilters.type}%` };
-      }
-
-      if (searchFilters.parentId !== undefined) {
-        whereClause.parentCategoryId = searchFilters.parentId;
-      }
-
-      const includeClause: any[] = [
-        { model: Category, as: 'parentCategory' }
-      ];
-
-      if (includeBooks) {
-        includeClause.push({ model: Book, through: { attributes: [] } });
-      }
-
-      const { count, rows } = await Category.findAndCountAll({
-        where: whereClause,
-        include: includeClause,
-        limit: pagination.limit,
-        offset: pagination.offset,
-        order: [['name', 'ASC']],
-        distinct: true,
-      });
-
-      const meta = this.createPaginationMeta(pagination.page, pagination.limit, count);
-
-      return this.createSuccessResponse(rows, undefined, meta);
+      return this.createSuccessResponse(
+        categories,
+        'Categories retrieved successfully',
+        {
+          pagination: {
+            page,
+            limit,
+            totalCount,
+            totalPages,
+            hasNext: page < totalPages,
+            hasPrev: page > 1,
+          },
+        }
+      );
     });
   }
 
   async getCategoryBooks(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
     return this.handleRequest(event, async () => {
       const categoryId = this.getPathParameter(event, 'id');
-      if (!categoryId || isNaN(Number(categoryId))) {
-        return this.createErrorResponse('Valid category ID is required', 400);
+      if (!categoryId) {
+        return this.createErrorResponse('Category ID is required', 400);
       }
 
-      const pagination = this.getPaginationParams(event);
+      const id = parseInt(categoryId, 10);
+      if (isNaN(id)) {
+        return this.createErrorResponse('Invalid category ID', 400);
+      }
 
-      const category = await Category.findByPk(Number(categoryId));
+      const page = parseInt(this.getQueryParameter(event, 'page') || '1', 10);
+      const limit = parseInt(this.getQueryParameter(event, 'limit') || '50', 10);
+
+      // Check if category exists
+      const category = await Category.findByPk(id);
       if (!category) {
         return this.createErrorResponse('Category not found', 404);
       }
 
-      const { count, rows } = await Book.findAndCountAll({
+      // Get books in this category
+      const result = await Book.findAndCountAll({
         include: [
           {
             model: Category,
-            where: { id: Number(categoryId) },
+            as: 'Categories',
+            where: { id: category.id },
             through: { attributes: [] },
           },
         ],
-        limit: pagination.limit,
-        offset: pagination.offset,
+        limit,
+        offset: (page - 1) * limit,
         order: [['title', 'ASC']],
-        distinct: true,
       });
 
-      const meta = this.createPaginationMeta(pagination.page, pagination.limit, count);
+      const totalPages = Math.ceil(result.count / limit);
 
       return this.createSuccessResponse(
         {
           category: {
             id: category.id,
             name: category.name,
-            type: category.type,
           },
-          books: rows,
+          books: result.rows,
         },
-        undefined,
-        meta
+        'Category books retrieved successfully',
+        {
+          pagination: {
+            page,
+            limit,
+            totalCount: result.count,
+            totalPages,
+            hasNext: page < totalPages,
+            hasPrev: page > 1,
+          },
+        }
       );
     });
   }
-  
 }
 
 export const categoryController = new CategoryController();

@@ -78,9 +78,6 @@ export const routeRequest = async (event: APIGatewayProxyEvent): Promise<APIGate
         case '/categories/{id}/books':
           if (httpMethod === 'GET') return await categoryController.getCategoryBooks(event);
           break;
-        case '/categories/{id}/stats':
-          if (httpMethod === 'GET') return await categoryController.getCategoryStats(event);
-          break;
       }
     }
 
@@ -137,7 +134,7 @@ export const routeRequest = async (event: APIGatewayProxyEvent): Promise<APIGate
           success: true,
           message: 'API is healthy',
           timestamp: new Date().toISOString(),
-          version: process.env.API_VERSION || '1.0.0',
+          version: process.env['API_VERSION'] || '1.0.0',
           uptime: process.uptime(),
         }),
       };
