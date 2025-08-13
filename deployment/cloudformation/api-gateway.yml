@@ -1,0 +1,515 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'My Many Books API - API Gateway Configuration'
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [dev, staging, prod]
+    Default: dev
+    Description: Environment name
+
+  InfrastructureStackName:
+    Type: String
+    Description: Name of the infrastructure stack to import values from
+
+  CertificateArn:
+    Type: String
+    Default: ''
+    Description: SSL certificate ARN for custom domain (optional)
+
+  DomainName:
+    Type: String
+    Default: ''
+    Description: Custom domain name (optional)
+
+  ApiKeyName:
+    Type: String
+    Default: 'DefaultApiKey'
+    Description: Name for the API key
+
+  RateLimitBurst:
+    Type: Number
+    Default: 100
+    Description: API Gateway burst limit
+
+  RateLimit:
+    Type: Number
+    Default: 50
+    Description: API Gateway rate limit
+
+  QuotaLimit:
+    Type: Number
+    Default: 10000
+    Description: API Gateway quota limit
+
+  CognitoUserPoolId:
+    Type: String
+    Default: ''
+    Description: Cognito User Pool ID for authentication (optional)
+
+  EnableApiKeys:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Enable API key authentication
+
+  EnableCognito:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Enable Cognito authentication
+
+Conditions:
+  HasCustomDomain: !Not [!Equals [!Ref DomainName, '']]
+  HasCertificate: !Not [!Equals [!Ref CertificateArn, '']]
+  IsProduction: !Equals [!Ref Environment, 'prod']
+  UseApiKeys: !Equals [!Ref EnableApiKeys, 'true']
+  UseCognito: !Equals [!Ref EnableCognito, 'true']
+
+Resources:
+  # API Gateway Rest API
+  ApiGatewayRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub '${AWS::StackName}-api'
+      Description: !Sub 'My Many Books API - ${Environment}'
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      ApiKeySourceType: HEADER
+      DisableExecuteApiEndpoint: !If [HasCustomDomain, true, false]
+      Policy:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: 'execute-api:Invoke'
+            Resource: '*'
+            Condition:
+              IpAddress:
+                'aws:SourceIp': '0.0.0.0/0'
+      BinaryMediaTypes:
+        - 'image/*'
+        - 'application/pdf'
+        - 'application/octet-stream'
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-api'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Lambda Function (placeholder - will be created by Serverless)
+  ApiLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-api-function'
+      Runtime: nodejs18.x
+      Handler: dist/handlers/router.handler
+      Role: !ImportValue 
+        'Fn::Sub': '${InfrastructureStackName}-Lambda-Role-ARN'
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            return {
+              statusCode: 200,
+              body: JSON.stringify({
+                message: 'API Gateway deployed, waiting for application deployment'
+              })
+            };
+          };
+      Environment:
+        Variables:
+          NODE_ENV: !Ref Environment
+          LOG_LEVEL: !If [IsProduction, 'info', 'debug']
+      VpcConfig:
+        SecurityGroupIds:
+          - !ImportValue 
+            'Fn::Sub': '${InfrastructureStackName}-LambdaSecurityGroup-ID'
+        SubnetIds:
+          - !ImportValue 
+            'Fn::Sub': '${InfrastructureStackName}-PrivateSubnet1-ID'
+          - !ImportValue 
+            'Fn::Sub': '${InfrastructureStackName}-PrivateSubnet2-ID'
+      TracingConfig:
+        Mode: Active
+      ReservedConcurrencyLimit: !If [IsProduction, 50, 10]
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-api-function'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Lambda Permission for API Gateway
+  LambdaApiGatewayInvoke:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ApiLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayRestApi}/*/*'
+
+  # API Gateway Deployment
+  ApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ProxyResource
+      - ProxyMethod
+      - OptionsMethod
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      StageName: !Sub '${Environment}'
+      StageDescription: !Sub 'Deployment for ${Environment} environment'
+
+  # API Gateway Stage
+  ApiGatewayStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      DeploymentId: !Ref ApiGatewayDeployment
+      StageName: !Ref Environment
+      Description: !Sub '${Environment} stage'
+      MethodSettings:
+        - ResourcePath: '/*'
+          HttpMethod: '*'
+          DataTraceEnabled: !If [IsProduction, false, true]
+          LoggingLevel: !If [IsProduction, 'ERROR', 'INFO']
+          MetricsEnabled: true
+          ThrottlingBurstLimit: !Ref RateLimitBurst
+          ThrottlingRateLimit: !Ref RateLimit
+      AccessLogSetting:
+        DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
+        Format: !Sub |
+          {
+            "requestId": "$context.requestId",
+            "ip": "$context.identity.sourceIp",
+            "caller": "$context.identity.caller",
+            "user": "$context.identity.user",
+            "requestTime": "$context.requestTime",
+            "httpMethod": "$context.httpMethod",
+            "resourcePath": "$context.resourcePath",
+            "status": "$context.status",
+            "protocol": "$context.protocol",
+            "responseLength": "$context.responseLength",
+            "responseTime": "$context.responseTime",
+            "error": "$context.error.message",
+            "integrationError": "$context.integration.error"
+          }
+      TracingEnabled: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-${Environment}-stage'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # CloudWatch Log Group for API Gateway
+  ApiGatewayLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/apigateway/${AWS::StackName}-${Environment}'
+      RetentionInDays: !If [IsProduction, 30, 7]
+
+  # API Gateway Account (for CloudWatch logging)
+  ApiGatewayAccount:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
+
+  # IAM Role for API Gateway CloudWatch Logs
+  ApiGatewayCloudWatchLogsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ApiGatewayLogsPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:PutLogEvents
+                  - logs:GetLogEvents
+                  - logs:FilterLogEvents
+                Resource: '*'
+
+  # Proxy Resource for catch-all routing
+  ProxyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
+      PathPart: '{proxy+}'
+
+  # Proxy Method
+  ProxyMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      ResourceId: !Ref ProxyResource
+      HttpMethod: ANY
+      AuthorizationType: !If [UseCognito, 'COGNITO_USER_POOLS', 'NONE']
+      AuthorizerId: !If [UseCognito, !Ref CognitoAuthorizer, !Ref 'AWS::NoValue']
+      ApiKeyRequired: !Ref UseApiKeys
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiLambdaFunction.Arn}/invocations'
+        PassthroughBehavior: WHEN_NO_MATCH
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+          ResponseModels:
+            application/json: Empty
+
+  # CORS Options Method
+  OptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      ResourceId: !Ref ProxyResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+            ResponseTemplates:
+              application/json: ''
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+          ResponseModels:
+            application/json: Empty
+
+  # Root method for health checks
+  RootMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      ResourceId: !GetAtt ApiGatewayRestApi.RootResourceId
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiLambdaFunction.Arn}/invocations'
+
+  # Cognito Authorizer (conditional)
+  CognitoAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Condition: UseCognito
+    Properties:
+      Name: CognitoAuthorizer
+      Type: COGNITO_USER_POOLS
+      RestApiId: !Ref ApiGatewayRestApi
+      ProviderARNs:
+        - !Sub 'arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}'
+      IdentitySource: method.request.header.Authorization
+
+  # API Key
+  ApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    Condition: UseApiKeys
+    Properties:
+      Name: !Sub '${AWS::StackName}-${Environment}-${ApiKeyName}'
+      Description: !Sub 'API Key for ${AWS::StackName} ${Environment}'
+      Enabled: true
+      StageKeys:
+        - RestApiId: !Ref ApiGatewayRestApi
+          StageName: !Ref ApiGatewayStage
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-${Environment}-api-key'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Usage Plan
+  UsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    Condition: UseApiKeys
+    Properties:
+      UsagePlanName: !Sub '${AWS::StackName}-${Environment}-usage-plan'
+      Description: !Sub 'Usage plan for ${AWS::StackName} ${Environment}'
+      ApiStages:
+        - ApiId: !Ref ApiGatewayRestApi
+          Stage: !Ref ApiGatewayStage
+      Throttle:
+        BurstLimit: !Ref RateLimitBurst
+        RateLimit: !Ref RateLimit
+      Quota:
+        Limit: !Ref QuotaLimit
+        Period: MONTH
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-${Environment}-usage-plan'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Usage Plan Key
+  UsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Condition: UseApiKeys
+    Properties:
+      KeyId: !Ref ApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref UsagePlan
+
+  # Custom Domain (conditional)
+  ApiGatewayDomainName:
+    Type: AWS::ApiGateway::DomainName
+    Condition: HasCustomDomain
+    Properties:
+      DomainName: !Ref DomainName
+      CertificateArn: !Ref CertificateArn
+      SecurityPolicy: TLS_1_2
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-custom-domain'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Base Path Mapping
+  ApiGatewayBasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Condition: HasCustomDomain
+    Properties:
+      DomainName: !Ref ApiGatewayDomainName
+      RestApiId: !Ref ApiGatewayRestApi
+      Stage: !Ref ApiGatewayStage
+
+  # WAF Web ACL for API protection
+  WebAcl:
+    Type: AWS::WAFv2::WebACL
+    Condition: IsProduction
+    Properties:
+      Name: !Sub '${AWS::StackName}-${Environment}-waf'
+      Scope: REGIONAL
+      DefaultAction:
+        Allow: {}
+      Description: !Sub 'WAF for ${AWS::StackName} ${Environment}'
+      Rules:
+        - Name: AWSManagedRulesCommonRuleSet
+          Priority: 1
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesCommonRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: CommonRuleSetMetric
+        - Name: RateLimitRule
+          Priority: 2
+          Action:
+            Block: {}
+          Statement:
+            RateBasedStatement:
+              Limit: 2000
+              AggregateKeyType: IP
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: RateLimitMetric
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: !Sub '${AWS::StackName}WebAcl'
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-${Environment}-waf'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Associate WAF with API Gateway Stage
+  WebAclAssociation:
+    Type: AWS::WAFv2::WebACLAssociation
+    Condition: IsProduction
+    Properties:
+      ResourceArn: !Sub 'arn:aws:apigateway:${AWS::Region}::/restapis/${ApiGatewayRestApi}/stages/${ApiGatewayStage}'
+      WebACLArn: !GetAtt WebAcl.Arn
+
+Outputs:
+  ApiGatewayRestApiId:
+    Description: API Gateway REST API ID
+    Value: !Ref ApiGatewayRestApi
+    Export:
+      Name: !Sub '${AWS::StackName}-RestApi-ID'
+
+  ApiGatewayRootResourceId:
+    Description: API Gateway Root Resource ID
+    Value: !GetAtt ApiGatewayRestApi.RootResourceId
+    Export:
+      Name: !Sub '${AWS::StackName}-RootResource-ID'
+
+  ApiGatewayUrl:
+    Description: API Gateway URL
+    Value: !Sub 'https://${ApiGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+    Export:
+      Name: !Sub '${AWS::StackName}-API-URL'
+
+  CustomDomainName:
+    Condition: HasCustomDomain
+    Description: Custom Domain Name
+    Value: !Ref DomainName
+    Export:
+      Name: !Sub '${AWS::StackName}-CustomDomain'
+
+  CustomDomainTarget:
+    Condition: HasCustomDomain
+    Description: Custom Domain Target for DNS
+    Value: !GetAtt ApiGatewayDomainName.RegionalDomainName
+    Export:
+      Name: !Sub '${AWS::StackName}-CustomDomain-Target'
+
+  ApiKeyId:
+    Condition: UseApiKeys
+    Description: API Key ID
+    Value: !Ref ApiKey
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiKey-ID'
+
+  UsagePlanId:
+    Condition: UseApiKeys
+    Description: Usage Plan ID
+    Value: !Ref UsagePlan
+    Export:
+      Name: !Sub '${AWS::StackName}-UsagePlan-ID'
+
+  LambdaFunctionArn:
+    Description: Lambda Function ARN
+    Value: !GetAtt ApiLambdaFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-Lambda-ARN'

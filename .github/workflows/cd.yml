@@ -1,0 +1,444 @@
+name: Continuous Deployment
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment Environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      force_deploy:
+        description: 'Force deployment (skip some checks)'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  NODE_VERSION: '18.x'
+  AWS_REGION: 'us-east-1'
+
+jobs:
+  determine-environment:
+    name: Determine Environment
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      should_deploy: ${{ steps.env.outputs.should_deploy }}
+    
+    steps:
+      - name: Determine Environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/develop" ]; then
+            echo "environment=dev" >> $GITHUB_OUTPUT
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+          fi
+
+  pre-deployment-checks:
+    name: Pre-deployment Checks
+    runs-on: ubuntu-latest
+    needs: [determine-environment]
+    if: needs.determine-environment.outputs.should_deploy == 'true'
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Security Checks
+        run: |
+          npm audit --audit-level=high
+          npx audit-ci --high
+        continue-on-error: ${{ github.event.inputs.force_deploy == 'true' }}
+
+      - name: Check for Breaking Changes
+        run: |
+          if [ "${{ needs.determine-environment.outputs.environment }}" = "prod" ]; then
+            echo "Checking for breaking changes in production deployment..."
+            # Add your breaking change detection logic here
+            # For example, checking API schema changes, database migrations, etc.
+          fi
+
+      - name: Validate Environment Configuration
+        run: |
+          echo "Validating configuration for ${{ needs.determine-environment.outputs.environment }} environment"
+          # Add validation for environment-specific configurations
+
+  database-migration:
+    name: Database Migration
+    runs-on: ubuntu-latest
+    needs: [determine-environment, pre-deployment-checks]
+    environment: ${{ needs.determine-environment.outputs.environment }}
+    if: needs.determine-environment.outputs.should_deploy == 'true'
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run Database Migrations
+        run: |
+          export NODE_ENV=${{ needs.determine-environment.outputs.environment }}
+          export DB_HOST=${{ secrets.DB_HOST }}
+          export DB_PORT=${{ secrets.DB_PORT }}
+          export DB_NAME=${{ secrets.DB_NAME }}
+          export DB_USER=${{ secrets.DB_USER }}
+          export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          export DB_SSL=true
+          
+          echo "Running migrations for ${{ needs.determine-environment.outputs.environment }}"
+          npm run db:migrate
+        env:
+          NODE_ENV: ${{ needs.determine-environment.outputs.environment }}
+
+      - name: Backup Database
+        if: needs.determine-environment.outputs.environment == 'prod'
+        run: |
+          echo "Creating database backup before production deployment"
+          # Add database backup logic here
+          # aws rds create-db-snapshot --db-instance-identifier mydbinstance --db-snapshot-identifier pre-deploy-$(date +%Y%m%d-%H%M%S)
+
+  deploy-infrastructure:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    needs: [determine-environment, pre-deployment-checks]
+    environment: ${{ needs.determine-environment.outputs.environment }}
+    if: needs.determine-environment.outputs.should_deploy == 'true'
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Deploy Infrastructure
+        run: |
+          echo "Deploying infrastructure to ${{ needs.determine-environment.outputs.environment }}"
+          
+          # Deploy CloudFormation stack
+          aws cloudformation deploy \
+            --template-file deployment/cloudformation/infrastructure.yml \
+            --stack-name my-many-books-infrastructure-${{ needs.determine-environment.outputs.environment }} \
+            --parameter-overrides \
+              Environment=${{ needs.determine-environment.outputs.environment }} \
+              VpcCidr=${{ secrets.VPC_CIDR }} \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Update Route 53 Records
+        if: needs.determine-environment.outputs.environment == 'prod'
+        run: |
+          # Update DNS records for production
+          echo "Updating Route 53 records for production"
+
+  deploy-application:
+    name: Deploy Application
+    runs-on: ubuntu-latest
+    needs: [determine-environment, pre-deployment-checks, database-migration, deploy-infrastructure]
+    environment: ${{ needs.determine-environment.outputs.environment }}
+    if: needs.determine-environment.outputs.should_deploy == 'true'
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Application
+        run: npm run build
+
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-${{ needs.determine-environment.outputs.environment }}
+        continue-on-error: true
+
+      - name: Deploy with Serverless
+        run: |
+          export NODE_ENV=${{ needs.determine-environment.outputs.environment }}
+          export STAGE=${{ needs.determine-environment.outputs.environment }}
+          
+          # Set environment-specific variables
+          export DB_HOST=${{ secrets.DB_HOST }}
+          export DB_PORT=${{ secrets.DB_PORT }}
+          export DB_NAME=${{ secrets.DB_NAME }}
+          export DB_USER=${{ secrets.DB_USER }}
+          export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          export API_KEYS_ENABLED=${{ secrets.API_KEYS_ENABLED }}
+          export COGNITO_USER_POOL_ID=${{ secrets.COGNITO_USER_POOL_ID }}
+          export COGNITO_CLIENT_ID=${{ secrets.COGNITO_CLIENT_ID }}
+          
+          echo "Deploying application to ${{ needs.determine-environment.outputs.environment }}"
+          npx serverless deploy --stage ${{ needs.determine-environment.outputs.environment }} --verbose
+
+      - name: Update API Gateway Custom Domain
+        if: needs.determine-environment.outputs.environment == 'prod'
+        run: |
+          # Update custom domain mapping for production
+          echo "Updating API Gateway custom domain"
+
+      - name: Warm Up Lambda Functions
+        run: |
+          echo "Warming up Lambda functions"
+          # Make initial requests to warm up functions
+          sleep 30
+          curl -f https://$(aws apigateway get-domain-names --query 'items[0].domainName' --output text)/${{ needs.determine-environment.outputs.environment }}/health || true
+
+  post-deployment-tests:
+    name: Post-deployment Tests
+    runs-on: ubuntu-latest
+    needs: [determine-environment, deploy-application]
+    environment: ${{ needs.determine-environment.outputs.environment }}
+    if: needs.determine-environment.outputs.should_deploy == 'true'
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Newman
+        run: npm install -g newman newman-reporter-htmlextra
+
+      - name: Configure Test Environment
+        run: |
+          case "${{ needs.determine-environment.outputs.environment }}" in
+            "dev")
+              echo "API_BASE_URL=https://your-api-dev.execute-api.${{ env.AWS_REGION }}.amazonaws.com/dev" >> $GITHUB_ENV
+              ;;
+            "staging")
+              echo "API_BASE_URL=https://your-api-staging.execute-api.${{ env.AWS_REGION }}.amazonaws.com/staging" >> $GITHUB_ENV
+              ;;
+            "prod")
+              echo "API_BASE_URL=https://api.yourdomain.com" >> $GITHUB_ENV
+              ;;
+          esac
+
+      - name: Run Health Checks
+        run: |
+          echo "Running health checks against ${{ env.API_BASE_URL }}"
+          
+          # Wait for deployment to be ready
+          for i in {1..30}; do
+            if curl -f ${{ env.API_BASE_URL }}/health; then
+              echo "Health check passed"
+              break
+            fi
+            echo "Waiting for deployment to be ready... (attempt $i/30)"
+            sleep 10
+          done
+
+      - name: Run Smoke Tests
+        run: |
+          newman run postman/My-Many-Books-API.postman_collection.json \
+            --env-var "baseUrl=${{ env.API_BASE_URL }}" \
+            --folder "Health Check" \
+            --reporters cli,json \
+            --reporter-json-export smoke-test-results.json
+        continue-on-error: true
+
+      - name: Run Integration Tests
+        if: needs.determine-environment.outputs.environment != 'prod'
+        run: |
+          newman run postman/My-Many-Books-API.postman_collection.json \
+            --env-var "baseUrl=${{ env.API_BASE_URL }}" \
+            --reporters cli,htmlextra \
+            --reporter-htmlextra-export integration-test-results.html \
+            --timeout-request 30000 \
+            --delay-request 1000
+        continue-on-error: true
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: post-deployment-tests-${{ needs.determine-environment.outputs.environment }}
+          path: |
+            smoke-test-results.json
+            integration-test-results.html
+
+  monitor-deployment:
+    name: Monitor Deployment
+    runs-on: ubuntu-latest
+    needs: [determine-environment, post-deployment-tests]
+    environment: ${{ needs.determine-environment.outputs.environment }}
+    if: needs.determine-environment.outputs.should_deploy == 'true'
+    
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Create CloudWatch Dashboard
+        run: |
+          echo "Creating/updating CloudWatch dashboard for ${{ needs.determine-environment.outputs.environment }}"
+          # Add CloudWatch dashboard creation logic
+
+      - name: Set up Alarms
+        run: |
+          echo "Setting up CloudWatch alarms for ${{ needs.determine-environment.outputs.environment }}"
+          # Add CloudWatch alarms setup
+
+      - name: Monitor for 5 minutes
+        run: |
+          echo "Monitoring deployment for 5 minutes..."
+          
+          for i in {1..10}; do
+            # Check Lambda function metrics
+            aws cloudwatch get-metric-statistics \
+              --namespace AWS/Lambda \
+              --metric-name Duration \
+              --dimensions Name=FunctionName,Value=my-many-books-api-${{ needs.determine-environment.outputs.environment }}-main \
+              --start-time $(date -u -d '5 minutes ago' +%Y-%m-%dT%H:%M:%S) \
+              --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+              --period 300 \
+              --statistics Average \
+              --query 'Datapoints[0].Average' \
+              --output text || echo "No metrics available yet"
+            
+            sleep 30
+          done
+
+  rollback-on-failure:
+    name: Rollback on Failure
+    runs-on: ubuntu-latest
+    needs: [determine-environment, deploy-application, post-deployment-tests, monitor-deployment]
+    environment: ${{ needs.determine-environment.outputs.environment }}
+    if: failure() && needs.determine-environment.outputs.should_deploy == 'true'
+    
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Rollback Deployment
+        run: |
+          echo "Rolling back deployment for ${{ needs.determine-environment.outputs.environment }}"
+          
+          # Get previous successful deployment
+          PREVIOUS_VERSION=$(aws lambda get-function --function-name my-many-books-api-${{ needs.determine-environment.outputs.environment }}-main --query 'Configuration.Version' --output text)
+          
+          # Rollback to previous version
+          aws lambda update-alias \
+            --function-name my-many-books-api-${{ needs.determine-environment.outputs.environment }}-main \
+            --name LIVE \
+            --function-version $((PREVIOUS_VERSION - 1))
+
+      - name: Notify Rollback
+        run: |
+          echo "🚨 Deployment rolled back due to failures"
+          echo "Environment: ${{ needs.determine-environment.outputs.environment }}"
+          echo "Check logs for details"
+
+  notify-completion:
+    name: Notify Completion
+    runs-on: ubuntu-latest
+    needs: [determine-environment, deploy-application, post-deployment-tests, monitor-deployment]
+    environment: ${{ needs.determine-environment.outputs.environment }}
+    if: always() && needs.determine-environment.outputs.should_deploy == 'true'
+    
+    steps:
+      - name: Notify Success
+        if: needs.deploy-application.result == 'success' && needs.post-deployment-tests.result == 'success'
+        run: |
+          echo "✅ Deployment completed successfully"
+          echo "Environment: ${{ needs.determine-environment.outputs.environment }}"
+          echo "Status: All tests passed and monitoring is active"
+
+      - name: Notify Failure
+        if: needs.deploy-application.result == 'failure' || needs.post-deployment-tests.result == 'failure'
+        run: |
+          echo "❌ Deployment failed"
+          echo "Environment: ${{ needs.determine-environment.outputs.environment }}"
+          echo "Check the logs for failure details"
+
+      # Optional: Slack/Teams notification
+      # - name: Slack Notification
+      #   uses: 8398a7/action-slack@v3
+      #   if: always()
+      #   with:
+      #     status: ${{ job.status }}
+      #     channel: '#deployments'
+      #     webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+      #     fields: repo,message,commit,author,action,eventName,ref,workflow

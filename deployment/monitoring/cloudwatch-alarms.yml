@@ -1,0 +1,443 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'My Many Books API - CloudWatch Alarms'
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [dev, staging, prod]
+    Default: dev
+    Description: Environment name
+
+  SNSTopicArn:
+    Type: String
+    Default: ''
+    Description: SNS Topic ARN for alarm notifications (optional)
+
+  LambdaFunctionName:
+    Type: String
+    Default: ''
+    Description: Lambda function name for monitoring
+
+  DatabaseInstanceId:
+    Type: String
+    Default: ''
+    Description: RDS instance identifier
+
+  CacheClusterId:
+    Type: String
+    Default: ''
+    Description: ElastiCache cluster identifier
+
+Conditions:
+  HasSNSTopic: !Not [!Equals [!Ref SNSTopicArn, '']]
+  IsProduction: !Equals [!Ref Environment, 'prod']
+  HasLambdaFunction: !Not [!Equals [!Ref LambdaFunctionName, '']]
+  HasDatabase: !Not [!Equals [!Ref DatabaseInstanceId, '']]
+  HasCache: !Not [!Equals [!Ref CacheClusterId, '']]
+
+Resources:
+  # Lambda Function Alarms
+  LambdaErrorRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasLambdaFunction
+    Properties:
+      AlarmName: !Sub '${Environment}-lambda-error-rate-high'
+      AlarmDescription: 'Lambda function error rate is too high'
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: !If [IsProduction, 5, 10]
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref LambdaFunctionName
+      AlarmActions: !If
+        - HasSNSTopic
+        - [!Ref SNSTopicArn]
+        - !Ref AWS::NoValue
+      OKActions: !If
+        - HasSNSTopic
+        - [!Ref SNSTopicArn]
+        - !Ref AWS::NoValue
+      TreatMissingData: notBreaching
+
+  LambdaDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasLambdaFunction
+    Properties:
+      AlarmName: !Sub '${Environment}-lambda-duration-high'
+      AlarmDescription: 'Lambda function duration is too high'
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: !If [IsProduction, 5000, 10000]
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref LambdaFunctionName
+      AlarmActions: !If
+        - HasSNSTopic
+        - [!Ref SNSTopicArn]
+        - !Ref AWS::NoValue
+      TreatMissingData: notBreaching
+
+  LambdaThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasLambdaFunction
+    Properties:
+      AlarmName: !Sub '${Environment}-lambda-throttles'
+      AlarmDescription: 'Lambda function is being throttled'
+      MetricName: Throttles
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref LambdaFunctionName
+      AlarmActions: !If
+        - HasSNSTopic
+        - [!Ref SNSTopicArn]
+        - !Ref AWS::NoValue
+      TreatMissingData: notBreaching
+
+  LambdaConcurrentExecutionsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasLambdaFunction
+    Properties:
+      AlarmName: !Sub '${Environment}-lambda-concurrent-executions-high'
+      AlarmDescription: 'Lambda concurrent executions approaching limit'
+      MetricName: ConcurrentExecutions
+      Namespace: AWS/Lambda
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: !If [IsProduction, 40, 8]
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref LambdaFunctionName
+      AlarmActions: !If
+        - HasSNSTopic
+        - [!Ref SNSTopicArn]
+        - !Ref AWS::NoValue
+      TreatMissingData: notBreaching
+
+  # API Gateway Alarms
+  ApiGateway4XXErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${Environment}-api-gateway-4xx-errors'
+      AlarmDescription: 'API Gateway 4XX error rate is high'
+      MetricName: 4XXError
+      Namespace: AWS/ApiGateway
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: !If [IsProduction, 10, 20]
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: ApiName
+          Value: !Sub 'my-many-books-api-${Environment}'
+      AlarmActions: !If
+        - HasSNSTopic
+        - [!Ref SNSTopicArn]
+        - !Ref AWS::NoValue
+      TreatMissingData: notBreaching
+
+  ApiGateway5XXErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${Environment}-api-gateway-5xx-errors'
+      AlarmDescription: 'API Gateway 5XX error rate is high'
+      MetricName: 5XXError
+      Namespace: AWS/ApiGateway
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: ApiName
+          Value: !Sub 'my-many-books-api-${Environment}'
+      AlarmActions: !If
+        - HasSNSTopic
+        - [!Ref SNSTopicArn]
+        - !Ref AWS::NoValue
+      TreatMissingData: notBreaching
+
+  ApiGatewayLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${Environment}-api-gateway-latency-high'
+      AlarmDescription: 'API Gateway latency is too high'
+      MetricName: Latency
+      Namespace: AWS/ApiGateway
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: !If [IsProduction, 2000, 5000]
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: ApiName
+          Value: !Sub 'my-many-books-api-${Environment}'
+      AlarmActions: !If
+        - HasSNSTopic
+        - [!Ref SNSTopicArn]
+        - !Ref AWS::NoValue
+      TreatMissingData: notBreaching
+
+  # RDS Alarms
+  DatabaseCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasDatabase
+    Properties:
+      AlarmName: !Sub '${Environment}-database-cpu-high'
+      AlarmDescription: 'Database CPU utilization is high'
+      MetricName: CPUUtilization
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 80
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref DatabaseInstanceId
+      AlarmActions: !If
+        - HasSNSTopic
+        - [!Ref SNSTopicArn]
+        - !Ref AWS::NoValue
+      TreatMissingData: notBreaching
+
+  DatabaseConnectionsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasDatabase
+    Properties:
+      AlarmName: !Sub '${Environment}-database-connections-high'
+      AlarmDescription: 'Database connection count is high'
+      MetricName: DatabaseConnections
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: !If [IsProduction, 80, 40]
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref DatabaseInstanceId
+      AlarmActions: !If
+        - HasSNSTopic
+        - [!Ref SNSTopicArn]
+        - !Ref AWS::NoValue
+      TreatMissingData: notBreaching
+
+  DatabaseFreeMemoryAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasDatabase
+    Properties:
+      AlarmName: !Sub '${Environment}-database-memory-low'
+      AlarmDescription: 'Database free memory is low'
+      MetricName: FreeableMemory
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 104857600  # 100MB in bytes
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref DatabaseInstanceId
+      AlarmActions: !If
+        - HasSNSTopic
+        - [!Ref SNSTopicArn]
+        - !Ref AWS::NoValue
+      TreatMissingData: notBreaching
+
+  DatabaseReadLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasDatabase
+    Properties:
+      AlarmName: !Sub '${Environment}-database-read-latency-high'
+      AlarmDescription: 'Database read latency is high'
+      MetricName: ReadLatency
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 0.2
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref DatabaseInstanceId
+      AlarmActions: !If
+        - HasSNSTopic
+        - [!Ref SNSTopicArn]
+        - !Ref AWS::NoValue
+      TreatMissingData: notBreaching
+
+  DatabaseWriteLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasDatabase
+    Properties:
+      AlarmName: !Sub '${Environment}-database-write-latency-high'
+      AlarmDescription: 'Database write latency is high'
+      MetricName: WriteLatency
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 0.2
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref DatabaseInstanceId
+      AlarmActions: !If
+        - HasSNSTopic
+        - [!Ref SNSTopicArn]
+        - !Ref AWS::NoValue
+      TreatMissingData: notBreaching
+
+  # ElastiCache Alarms
+  CacheCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasCache
+    Properties:
+      AlarmName: !Sub '${Environment}-cache-cpu-high'
+      AlarmDescription: 'ElastiCache CPU utilization is high'
+      MetricName: CPUUtilization
+      Namespace: AWS/ElastiCache
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 90
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: CacheClusterId
+          Value: !Ref CacheClusterId
+      AlarmActions: !If
+        - HasSNSTopic
+        - [!Ref SNSTopicArn]
+        - !Ref AWS::NoValue
+      TreatMissingData: notBreaching
+
+  CacheMemoryUsageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasCache
+    Properties:
+      AlarmName: !Sub '${Environment}-cache-memory-usage-high'
+      AlarmDescription: 'ElastiCache memory usage is high'
+      MetricName: DatabaseMemoryUsagePercentage
+      Namespace: AWS/ElastiCache
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 90
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: CacheClusterId
+          Value: !Ref CacheClusterId
+      AlarmActions: !If
+        - HasSNSTopic
+        - [!Ref SNSTopicArn]
+        - !Ref AWS::NoValue
+      TreatMissingData: notBreaching
+
+  # Custom Application Alarms
+  ISBNServiceErrorRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${Environment}-isbn-service-error-rate'
+      AlarmDescription: 'ISBN service error rate is high'
+      MetricName: isbn_service_errors
+      Namespace: CWAgent
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: Environment
+          Value: !Ref Environment
+      AlarmActions: !If
+        - HasSNSTopic
+        - [!Ref SNSTopicArn]
+        - !Ref AWS::NoValue
+      TreatMissingData: notBreaching
+
+  DatabaseConnectionPoolAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${Environment}-database-connection-pool-exhausted'
+      AlarmDescription: 'Database connection pool is nearly exhausted'
+      MetricName: database_connection_pool_usage
+      Namespace: CWAgent
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 90
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: Environment
+          Value: !Ref Environment
+      AlarmActions: !If
+        - HasSNSTopic
+        - [!Ref SNSTopicArn]
+        - !Ref AWS::NoValue
+      TreatMissingData: notBreaching
+
+  # Composite Alarm for Overall Health
+  ApplicationHealthAlarm:
+    Type: AWS::CloudWatch::CompositeAlarm
+    Condition: IsProduction
+    Properties:
+      AlarmName: !Sub '${Environment}-application-health-critical'
+      AlarmDescription: 'Overall application health is critical'
+      AlarmRule: !Sub |
+        ALARM(${LambdaErrorRateAlarm}) OR
+        ALARM(${ApiGateway5XXErrorAlarm}) OR
+        ALARM(${DatabaseCPUAlarm}) OR
+        ALARM(${CacheCPUAlarm})
+      ActionsEnabled: true
+      AlarmActions: !If
+        - HasSNSTopic
+        - [!Ref SNSTopicArn]
+        - !Ref AWS::NoValue
+      OKActions: !If
+        - HasSNSTopic
+        - [!Ref SNSTopicArn]
+        - !Ref AWS::NoValue
+
+Outputs:
+  LambdaErrorRateAlarmArn:
+    Condition: HasLambdaFunction
+    Description: Lambda error rate alarm ARN
+    Value: !GetAtt LambdaErrorRateAlarm.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaErrorRate-Alarm-ARN'
+
+  ApiGateway5XXErrorAlarmArn:
+    Description: API Gateway 5XX error alarm ARN
+    Value: !GetAtt ApiGateway5XXErrorAlarm.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiGateway5XX-Alarm-ARN'
+
+  DatabaseCPUAlarmArn:
+    Condition: HasDatabase
+    Description: Database CPU alarm ARN
+    Value: !GetAtt DatabaseCPUAlarm.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-DatabaseCPU-Alarm-ARN'
+
+  ApplicationHealthAlarmArn:
+    Condition: IsProduction
+    Description: Application health composite alarm ARN
+    Value: !GetAtt ApplicationHealthAlarm.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ApplicationHealth-Alarm-ARN'
