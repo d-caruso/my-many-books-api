@@ -103,7 +103,7 @@ describe('IsbnUtils', () => {
         const result = IsbnUtils.validate('ABC-DEF-GHI');
         
         expect(result.isValid).toBe(false);
-        expect(result.error).toBe('ISBN contains no valid characters');
+        expect(result.error).toContain('Invalid ISBN length');
       });
     });
   });

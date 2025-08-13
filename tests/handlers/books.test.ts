@@ -2,11 +2,39 @@
 // tests/handlers/books.test.ts
 // ================================================================
 
-// Mock dependencies before imports
-jest.mock('../../src/controllers/BookController');
+// Mock dependencies before imports  
 jest.mock('../../src/middleware/requestLogger');
-jest.mock('../../src/middleware/cors');
-jest.mock('../../src/middleware/errorHandler');
+jest.mock('../../src/middleware/cors', () => ({
+  corsHandler: jest.fn().mockReturnValue({
+    statusCode: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+    },
+    body: '',
+  })
+}));
+jest.mock('../../src/middleware/errorHandler', () => ({
+  errorHandler: jest.fn().mockReturnValue({
+    statusCode: 500,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ success: false, error: 'Internal server error' })
+  })
+}));
+
+// Mock BookController with proper return values
+jest.mock('../../src/controllers/BookController', () => ({
+  bookController: {
+    createBook: jest.fn().mockResolvedValue({ statusCode: 201, body: '{}', headers: {} }),
+    getBook: jest.fn().mockResolvedValue({ statusCode: 200, body: '{}', headers: {} }),
+    updateBook: jest.fn().mockResolvedValue({ statusCode: 200, body: '{}', headers: {} }),
+    deleteBook: jest.fn().mockResolvedValue({ statusCode: 204, body: '{}', headers: {} }),
+    listBooks: jest.fn().mockResolvedValue({ statusCode: 200, body: '{}', headers: {} }),
+    searchBooksByIsbn: jest.fn().mockResolvedValue({ statusCode: 200, body: '{}', headers: {} }),
+    importBookFromIsbn: jest.fn().mockResolvedValue({ statusCode: 201, body: '{}', headers: {} }),
+  }
+}));
 
 import { APIGatewayProxyEvent } from 'aws-lambda';
 import { createBook, getBook, updateBook, deleteBook, listBooks, searchBooksByIsbn, importBookFromIsbn } from '../../src/handlers/books';

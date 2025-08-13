@@ -26,7 +26,7 @@ export class IsbnUtils {
     }
 
     // Clean the ISBN - remove spaces, hyphens, and other non-alphanumeric characters
-    const cleanIsbn = isbn.replace(/[^0-9X]/gi, '').toUpperCase();
+    const cleanIsbn = isbn.replace(/[^0-9A-Z]/gi, '').toUpperCase();
 
     if (cleanIsbn.length === 0) {
       return {

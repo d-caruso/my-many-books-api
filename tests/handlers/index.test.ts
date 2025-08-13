@@ -11,13 +11,56 @@ import * as isbnHandlers from '../../src/handlers/isbn';
 
 // Mock dependencies
 jest.mock('../../src/utils/database');
-jest.mock('../../src/controllers/BookController');
-jest.mock('../../src/controllers/AuthorController');
-jest.mock('../../src/controllers/CategoryController');
-jest.mock('../../src/controllers/IsbnController');
 jest.mock('../../src/middleware/requestLogger');
-jest.mock('../../src/middleware/cors');
-jest.mock('../../src/middleware/errorHandler');
+jest.mock('../../src/middleware/cors', () => ({
+  corsHandler: jest.fn().mockReturnValue({
+    statusCode: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+    },
+    body: '',
+  })
+}));
+jest.mock('../../src/middleware/errorHandler', () => ({
+  errorHandler: jest.fn().mockReturnValue({
+    statusCode: 500,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ success: false, error: 'Internal server error' })
+  })
+}));
+
+// Mock controllers with proper return values
+jest.mock('../../src/controllers/BookController', () => ({
+  bookController: {
+    listBooks: jest.fn().mockResolvedValue({ statusCode: 200, body: '{}', headers: {} }),
+    createBook: jest.fn().mockResolvedValue({ statusCode: 201, body: '{}', headers: {} }),
+    getBook: jest.fn().mockResolvedValue({ statusCode: 200, body: '{}', headers: {} }),
+    updateBook: jest.fn().mockResolvedValue({ statusCode: 200, body: '{}', headers: {} }),
+    deleteBook: jest.fn().mockResolvedValue({ statusCode: 204, body: '{}', headers: {} }),
+  }
+}));
+
+jest.mock('../../src/controllers/AuthorController', () => ({
+  authorController: {
+    listAuthors: jest.fn().mockResolvedValue({ statusCode: 200, body: '{}', headers: {} }),
+    createAuthor: jest.fn().mockResolvedValue({ statusCode: 201, body: '{}', headers: {} }),
+  }
+}));
+
+jest.mock('../../src/controllers/CategoryController', () => ({
+  categoryController: {
+    listCategories: jest.fn().mockResolvedValue({ statusCode: 200, body: '{}', headers: {} }),
+    createCategory: jest.fn().mockResolvedValue({ statusCode: 201, body: '{}', headers: {} }),
+  }
+}));
+
+jest.mock('../../src/controllers/IsbnController', () => ({
+  isbnController: {
+    lookupBook: jest.fn().mockResolvedValue({ statusCode: 200, body: '{}', headers: {} }),
+  }
+}));
 
 describe('Lambda Handlers', () => {
   let mockEvent: Partial<APIGatewayProxyEvent>;
