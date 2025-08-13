@@ -1,0 +1,1206 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-4789-a0b1-c2d3e4f5g6h7",
+		"name": "My Many Books API",
+		"description": "Comprehensive API testing collection for the My Many Books personal library management system. This collection includes all endpoints for managing books, authors, categories, and ISBN services.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "12345678"
+	},
+	"item": [
+		{
+			"name": "Health Check",
+			"item": [
+				{
+					"name": "API Health Check",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/health",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"health"
+							]
+						},
+						"description": "Check if the API is healthy and responsive"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Books",
+			"item": [
+				{
+					"name": "List All Books",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/books?page=1&limit=10&status=available",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"books"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number for pagination"
+								},
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Number of items per page"
+								},
+								{
+									"key": "status",
+									"value": "available",
+									"description": "Filter by book status (available, reading, read, wishlist)",
+									"disabled": true
+								},
+								{
+									"key": "title",
+									"value": "{{searchTitle}}",
+									"description": "Search by title",
+									"disabled": true
+								},
+								{
+									"key": "author",
+									"value": "{{searchAuthor}}",
+									"description": "Search by author name",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Retrieve a paginated list of all books with optional filtering"
+					},
+					"response": []
+				},
+				{
+					"name": "Create New Book",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    pm.environment.set('createdBookId', response.data.id);",
+									"    pm.environment.set('createdBookIsbn', response.data.isbnCode);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"isbnCode\": \"9780143127741\",\n  \"title\": \"The Handmaid's Tale\",\n  \"editionNumber\": 1,\n  \"editionDate\": \"1985-08-17\",\n  \"status\": \"available\",\n  \"notes\": \"Dystopian novel by Margaret Atwood\",\n  \"authors\": [\n    {\n      \"name\": \"Margaret\",\n      \"surname\": \"Atwood\",\n      \"nationality\": \"Canadian\"\n    }\n  ],\n  \"categories\": [\n    {\n      \"name\": \"Dystopian Fiction\"\n    },\n    {\n      \"name\": \"Contemporary Literature\"\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/books",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"books"
+							]
+						},
+						"description": "Create a new book with authors and categories"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Book by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/books/{{createdBookId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"books",
+								"{{createdBookId}}"
+							]
+						},
+						"description": "Retrieve a specific book by its ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Book",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"The Handmaid's Tale (Updated)\",\n  \"status\": \"read\",\n  \"notes\": \"Dystopian novel by Margaret Atwood - Finished reading\",\n  \"editionNumber\": 2\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/books/{{createdBookId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"books",
+								"{{createdBookId}}"
+							]
+						},
+						"description": "Update an existing book's information"
+					},
+					"response": []
+				},
+				{
+					"name": "Search Books by ISBN",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/books/search/isbn?isbn={{createdBookIsbn}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"books",
+								"search",
+								"isbn"
+							],
+							"query": [
+								{
+									"key": "isbn",
+									"value": "{{createdBookIsbn}}"
+								}
+							]
+						},
+						"description": "Search for books by ISBN code"
+					},
+					"response": []
+				},
+				{
+					"name": "Import Book from ISBN",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"isbn\": \"9780451524935\",\n  \"status\": \"wishlist\",\n  \"notes\": \"Classic dystopian novel - want to read\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/books/import/isbn",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"books",
+								"import",
+								"isbn"
+							]
+						},
+						"description": "Import book information from external sources using ISBN"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Book",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/books/{{createdBookId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"books",
+								"{{createdBookId}}"
+							]
+						},
+						"description": "Delete a book by its ID"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Authors",
+			"item": [
+				{
+					"name": "List All Authors",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/authors?page=1&limit=10",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "name",
+									"value": "{{searchName}}",
+									"description": "Search by author name",
+									"disabled": true
+								},
+								{
+									"key": "nationality",
+									"value": "{{searchNationality}}",
+									"description": "Filter by nationality",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Retrieve a paginated list of all authors"
+					},
+					"response": []
+				},
+				{
+					"name": "Create New Author",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    pm.environment.set('createdAuthorId', response.data.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"J.K.\",\n  \"surname\": \"Rowling\",\n  \"nationality\": \"British\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/authors",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors"
+							]
+						},
+						"description": "Create a new author"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Author by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/authors/{{createdAuthorId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors",
+								"{{createdAuthorId}}"
+							]
+						},
+						"description": "Retrieve a specific author by ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Author",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Joanne\",\n  \"surname\": \"Rowling\",\n  \"nationality\": \"British\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/authors/{{createdAuthorId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors",
+								"{{createdAuthorId}}"
+							]
+						},
+						"description": "Update an existing author's information"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Author's Books",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/authors/{{createdAuthorId}}/books",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors",
+								"{{createdAuthorId}}",
+								"books"
+							]
+						},
+						"description": "Get all books by a specific author"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Author",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/authors/{{createdAuthorId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"authors",
+								"{{createdAuthorId}}"
+							]
+						},
+						"description": "Delete an author by ID"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Categories",
+			"item": [
+				{
+					"name": "List All Categories",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/categories?page=1&limit=10",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"categories"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "name",
+									"value": "{{searchCategoryName}}",
+									"description": "Search by category name",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Retrieve a paginated list of all categories"
+					},
+					"response": []
+				},
+				{
+					"name": "Create New Category",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    pm.environment.set('createdCategoryId', response.data.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Fantasy Literature\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/categories",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"categories"
+							]
+						},
+						"description": "Create a new category"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Category by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/categories/{{createdCategoryId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"categories",
+								"{{createdCategoryId}}"
+							]
+						},
+						"description": "Retrieve a specific category by ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Category",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Epic Fantasy\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/categories/{{createdCategoryId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"categories",
+								"{{createdCategoryId}}"
+							]
+						},
+						"description": "Update an existing category"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Category's Books",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/categories/{{createdCategoryId}}/books",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"categories",
+								"{{createdCategoryId}}",
+								"books"
+							]
+						},
+						"description": "Get all books in a specific category"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Category",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/categories/{{createdCategoryId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"categories",
+								"{{createdCategoryId}}"
+							]
+						},
+						"description": "Delete a category by ID"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "ISBN Services",
+			"item": [
+				{
+					"name": "Lookup Book by ISBN (Path)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/isbn/lookup/9780451524935",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"isbn",
+								"lookup",
+								"9780451524935"
+							]
+						},
+						"description": "Lookup book information by ISBN (using path parameter)"
+					},
+					"response": []
+				},
+				{
+					"name": "Lookup Book by ISBN (Query)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/isbn/lookup?isbn=9780451524935",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"isbn",
+								"lookup"
+							],
+							"query": [
+								{
+									"key": "isbn",
+									"value": "9780451524935"
+								}
+							]
+						},
+						"description": "Lookup book information by ISBN (using query parameter)"
+					},
+					"response": []
+				},
+				{
+					"name": "Batch Lookup Books",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"isbns\": [\n    \"9780451524935\",\n    \"9780486284736\",\n    \"9780486400778\"\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/isbn/lookup",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"isbn",
+								"lookup"
+							]
+						},
+						"description": "Lookup multiple books by ISBN in a single request"
+					},
+					"response": []
+				},
+				{
+					"name": "Search Books by Title",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/isbn/search?title=1984&limit=5",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"isbn",
+								"search"
+							],
+							"query": [
+								{
+									"key": "title",
+									"value": "1984"
+								},
+								{
+									"key": "limit",
+									"value": "5"
+								},
+								{
+									"key": "author",
+									"value": "{{searchAuthor}}",
+									"description": "Optional author filter",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Search for books by title using external services"
+					},
+					"response": []
+				},
+				{
+					"name": "Validate ISBN (Path)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/isbn/validate/9780451524935",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"isbn",
+								"validate",
+								"9780451524935"
+							]
+						},
+						"description": "Validate if an ISBN is properly formatted and has a valid checksum"
+					},
+					"response": []
+				},
+				{
+					"name": "Validate ISBN (Query)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/isbn/validate?isbn=9780451524935",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"isbn",
+								"validate"
+							],
+							"query": [
+								{
+									"key": "isbn",
+									"value": "9780451524935"
+								}
+							]
+						},
+						"description": "Validate ISBN using query parameter"
+					},
+					"response": []
+				},
+				{
+					"name": "Format ISBN",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/isbn/format?isbn=9780451524935&format=isbn13",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"isbn",
+								"format"
+							],
+							"query": [
+								{
+									"key": "isbn",
+									"value": "9780451524935"
+								},
+								{
+									"key": "format",
+									"value": "isbn13",
+									"description": "Format type: isbn10, isbn13, or hyphenated"
+								}
+							]
+						},
+						"description": "Format ISBN to different representations"
+					},
+					"response": []
+				},
+				{
+					"name": "ISBN Service Health Check",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/isbn/health",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"isbn",
+								"health"
+							]
+						},
+						"description": "Check the health status of ISBN service and external integrations"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Resilience Stats",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/isbn/stats",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"isbn",
+								"stats"
+							]
+						},
+						"description": "Get statistics about circuit breaker, retry policies, and service resilience"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Cache Stats",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/isbn/cache",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"isbn",
+								"cache"
+							]
+						},
+						"description": "Get cache statistics and hit/miss ratios"
+					},
+					"response": []
+				},
+				{
+					"name": "Clear Cache",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/isbn/cache",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"isbn",
+								"cache"
+							]
+						},
+						"description": "Clear all cached ISBN lookup results"
+					},
+					"response": []
+				},
+				{
+					"name": "Reset Resilience",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/isbn/resilience",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"isbn",
+								"resilience"
+							]
+						},
+						"description": "Reset circuit breaker and resilience counters"
+					},
+					"response": []
+				},
+				{
+					"name": "Add Fallback Book",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"isbn\": \"9780000000000\",\n  \"title\": \"Test Book for Fallback\",\n  \"authors\": [\"Test Author\"],\n  \"publisher\": \"Test Publisher\",\n  \"publishDate\": \"2023-01-01\",\n  \"description\": \"This is a test book for fallback scenarios\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/isbn/fallback",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"isbn",
+								"fallback"
+							]
+						},
+						"description": "Add a fallback book entry for testing or when external services are unavailable"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Error Testing",
+			"item": [
+				{
+					"name": "Invalid ISBN Format",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/isbn/validate/invalid-isbn",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"isbn",
+								"validate",
+								"invalid-isbn"
+							]
+						},
+						"description": "Test error handling for invalid ISBN format"
+					},
+					"response": []
+				},
+				{
+					"name": "Non-existent Book ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/books/99999",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"books",
+								"99999"
+							]
+						},
+						"description": "Test 404 error for non-existent book"
+					},
+					"response": []
+				},
+				{
+					"name": "Invalid Route",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/invalid/route",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"invalid",
+								"route"
+							]
+						},
+						"description": "Test 404 error for invalid API route"
+					},
+					"response": []
+				},
+				{
+					"name": "Missing Required Fields",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Book Without ISBN\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/books",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"books"
+							]
+						},
+						"description": "Test validation error for missing required fields"
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Global pre-request script",
+					"// Set dynamic variables if needed",
+					"",
+					"// Generate timestamp",
+					"pm.environment.set('timestamp', new Date().toISOString());",
+					"",
+					"// Generate random test values",
+					"if (!pm.environment.get('randomSuffix')) {",
+					"    pm.environment.set('randomSuffix', Math.random().toString(36).substring(7));",
+					"}",
+					"",
+					"// Log request details in console",
+					"console.log('🚀 Request:', pm.request.method, pm.request.url.toString());"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Global test script",
+					"",
+					"// Basic response validation",
+					"pm.test('Response time is less than 10000ms', function () {",
+					"    pm.expect(pm.response.responseTime).to.be.below(10000);",
+					"});",
+					"",
+					"pm.test('Response has Content-Type header', function () {",
+					"    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');",
+					"});",
+					"",
+					"pm.test('Response has CORS headers', function () {",
+					"    pm.expect(pm.response.headers.has('Access-Control-Allow-Origin')).to.be.true;",
+					"});",
+					"",
+					"// Success response structure validation",
+					"if (pm.response.code >= 200 && pm.response.code < 300) {",
+					"    pm.test('Success response has proper structure', function () {",
+					"        const jsonData = pm.response.json();",
+					"        pm.expect(jsonData).to.have.property('success');",
+					"        pm.expect(jsonData.success).to.be.true;",
+					"    });",
+					"}",
+					"",
+					"// Error response structure validation",
+					"if (pm.response.code >= 400) {",
+					"    pm.test('Error response has proper structure', function () {",
+					"        const jsonData = pm.response.json();",
+					"        pm.expect(jsonData).to.have.property('success');",
+					"        pm.expect(jsonData).to.have.property('error');",
+					"        pm.expect(jsonData.success).to.be.false;",
+					"    });",
+					"}",
+					"",
+					"// Log response details",
+					"console.log('📥 Response:', pm.response.code, pm.response.status);",
+					"if (pm.response.code !== 200 && pm.response.code !== 201) {",
+					"    console.log('❌ Response body:', pm.response.text());",
+					"}"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "apiVersion",
+			"value": "v1",
+			"type": "string"
+		},
+		{
+			"key": "contentType",
+			"value": "application/json",
+			"type": "string"
+		}
+	]
+}
