@@ -90,7 +90,7 @@ export const createErrorResponse = (
   });
 
   // Don't expose internal error details in production
-  const isProduction = process.env.NODE_ENV === 'production';
+  const isProduction = process.env['NODE_ENV'] === 'production';
   const errorMessage = isOperational || !isProduction ? error.message : 'Internal server error';
 
   const response = {
@@ -123,4 +123,9 @@ export const asyncHandler = (
       return createErrorResponse(error as Error, event);
     }
   };
+};
+
+// Convenience function for error handling
+export const errorHandler = (error: Error | AppError, event?: APIGatewayProxyEvent): APIGatewayProxyResult => {
+  return createErrorResponse(error, event);
 };

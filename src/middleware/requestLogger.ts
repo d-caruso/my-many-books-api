@@ -26,7 +26,7 @@ export class RequestLogger {
   private logLevel: 'none' | 'basic' | 'detailed';
 
   private constructor() {
-    this.logLevel = (process.env.LOG_LEVEL as any) || 'basic';
+    this.logLevel = (process.env['LOG_LEVEL'] as any) || 'basic';
   }
 
   public static getInstance(): RequestLogger {
@@ -37,16 +37,15 @@ export class RequestLogger {
   }
 
   public logRequest(event: APIGatewayProxyEvent): RequestLogEntry {
-    const startTime = Date.now();
     
     const logEntry: RequestLogEntry = {
       requestId: event.requestContext.requestId,
       method: event.httpMethod,
       resource: event.resource,
       path: event.path,
-      queryStringParameters: event.queryStringParameters,
-      pathParameters: event.pathParameters,
-      headers: this.sanitizeHeaders(event.headers),
+      queryStringParameters: event.queryStringParameters as Record<string, string> | null,
+      pathParameters: event.pathParameters as Record<string, string> | null,
+      headers: this.sanitizeHeaders(event.headers as Record<string, string>),
       sourceIp: event.requestContext.identity.sourceIp,
       userAgent: event.headers['User-Agent'] || event.headers['user-agent'] || 'Unknown',
       timestamp: new Date().toISOString(),
@@ -169,4 +168,10 @@ export const withRequestLogging = (
       throw error;
     }
   };
+};
+
+// Convenience function for simple request logging
+export const requestLogger = (event: APIGatewayProxyEvent): RequestLogEntry => {
+  const logger = RequestLogger.getInstance();
+  return logger.logRequest(event);
 };

@@ -1,0 +1,215 @@
+# ================================================================
+# serverless.yml - Serverless Framework Configuration
+# ================================================================
+
+service: my-many-books-api
+
+frameworkVersion: '>=3.0.0'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ${opt:region, 'us-east-1'}
+  stage: ${opt:stage, 'dev'}
+  memorySize: 512
+  timeout: 30
+  environment:
+    NODE_ENV: ${self:provider.stage}
+    DB_HOST: ${env:DB_HOST}
+    DB_PORT: ${env:DB_PORT, '5432'}
+    DB_NAME: ${env:DB_NAME}
+    DB_USER: ${env:DB_USER}
+    DB_PASSWORD: ${env:DB_PASSWORD}
+    DB_SSL: ${env:DB_SSL, 'true'}
+    API_VERSION: ${env:API_VERSION, '1.0.0'}
+    LOG_LEVEL: ${env:LOG_LEVEL, 'info'}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          Resource: 'arn:aws:logs:*:*:*'
+
+plugins:
+  - serverless-esbuild
+  - serverless-offline
+
+custom:
+  esbuild:
+    bundle: true
+    minify: false
+    sourcemap: true
+    target: node18
+    external:
+      - pg-native
+    exclude:
+      - aws-sdk
+  serverless-offline:
+    httpPort: 3000
+    port: 3000
+
+functions:
+  # Single function deployment (recommended for API Gateway)
+  api:
+    handler: src/handlers/router.handler
+    events:
+      - http:
+          path: /{proxy+}
+          method: ANY
+          cors: true
+      - http:
+          path: /
+          method: ANY
+          cors: true
+
+  # Separate function deployments (alternative approach)
+  # Uncomment below if you prefer separate Lambda functions per resource
+
+  # books-create:
+  #   handler: src/handlers/books.createBook
+  #   events:
+  #     - http:
+  #         path: /books
+  #         method: post
+  #         cors: true
+
+  # books-get:
+  #   handler: src/handlers/books.getBook
+  #   events:
+  #     - http:
+  #         path: /books/{id}
+  #         method: get
+  #         cors: true
+
+  # books-update:
+  #   handler: src/handlers/books.updateBook
+  #   events:
+  #     - http:
+  #         path: /books/{id}
+  #         method: put
+  #         cors: true
+
+  # books-delete:
+  #   handler: src/handlers/books.deleteBook
+  #   events:
+  #     - http:
+  #         path: /books/{id}
+  #         method: delete
+  #         cors: true
+
+  # books-list:
+  #   handler: src/handlers/books.listBooks
+  #   events:
+  #     - http:
+  #         path: /books
+  #         method: get
+  #         cors: true
+
+  # books-search-isbn:
+  #   handler: src/handlers/books.searchBooksByIsbn
+  #   events:
+  #     - http:
+  #         path: /books/search/isbn
+  #         method: get
+  #         cors: true
+
+  # books-import-isbn:
+  #   handler: src/handlers/books.importBookFromIsbn
+  #   events:
+  #     - http:
+  #         path: /books/import/isbn
+  #         method: post
+  #         cors: true
+
+  # authors-create:
+  #   handler: src/handlers/authors.createAuthor
+  #   events:
+  #     - http:
+  #         path: /authors
+  #         method: post
+  #         cors: true
+
+  # authors-get:
+  #   handler: src/handlers/authors.getAuthor
+  #   events:
+  #     - http:
+  #         path: /authors/{id}
+  #         method: get
+  #         cors: true
+
+  # authors-update:
+  #   handler: src/handlers/authors.updateAuthor
+  #   events:
+  #     - http:
+  #         path: /authors/{id}
+  #         method: put
+  #         cors: true
+
+  # authors-delete:
+  #   handler: src/handlers/authors.deleteAuthor
+  #   events:
+  #     - http:
+  #         path: /authors/{id}
+  #         method: delete
+  #         cors: true
+
+  # authors-list:
+  #   handler: src/handlers/authors.listAuthors
+  #   events:
+  #     - http:
+  #         path: /authors
+  #         method: get
+  #         cors: true
+
+  # authors-books:
+  #   handler: src/handlers/authors.getAuthorBooks
+  #   events:
+  #     - http:
+  #         path: /authors/{id}/books
+  #         method: get
+  #         cors: true
+
+  # Health check
+  health:
+    handler: src/handlers/health.healthCheck
+    events:
+      - http:
+          path: /health
+          method: get
+          cors: true
+
+  readiness:
+    handler: src/handlers/health.readinessCheck
+    events:
+      - http:
+          path: /readiness
+          method: get
+          cors: true
+
+resources:
+  Resources:
+    # API Gateway CORS configuration
+    GatewayResponseDefault4XX:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+          gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        ResponseType: DEFAULT_4XX
+        RestApiId:
+          Ref: 'RestApiApigEvent'
+
+    GatewayResponseDefault5XX:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+          gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        ResponseType: DEFAULT_5XX
+        RestApiId:
+          Ref: 'RestApiApigEvent'
