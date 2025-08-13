@@ -16,6 +16,7 @@ export class Book extends IdBaseModel<BookAttributes> implements BookAttributes 
   public editionDate?: Date;
   public status?: BookStatus;
   public notes?: string;
+  public userId?: number;
 
   // Associations
   public authors?: Author[];
@@ -93,6 +94,17 @@ export class Book extends IdBaseModel<BookAttributes> implements BookAttributes 
             len: [0, 2000],
           },
         },
+        userId: {
+          type: DataTypes.INTEGER,
+          allowNull: true,
+          field: 'user_id',
+          references: {
+            model: 'users',
+            key: 'id',
+          },
+          onUpdate: 'CASCADE',
+          onDelete: 'SET NULL',
+        },
       },
       {
         ...this.getBaseOptions(sequelize, TABLE_NAMES.BOOKS),
@@ -115,6 +127,10 @@ export class Book extends IdBaseModel<BookAttributes> implements BookAttributes 
             fields: ['edition_date'],
             name: 'idx_book_edition_date',
           },
+          {
+            fields: ['user_id'],
+            name: 'idx_book_user_id',
+          },
         ],
       }
     );
@@ -132,6 +148,7 @@ export class Book extends IdBaseModel<BookAttributes> implements BookAttributes 
       editionDate: this.editionDate,
       status: this.status,
       notes: this.notes,
+      userId: this.userId,
       creationDate: this.creationDate,
       updateDate: this.updateDate,
     };

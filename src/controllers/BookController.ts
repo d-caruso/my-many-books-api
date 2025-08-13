@@ -3,11 +3,15 @@
 // ================================================================
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { Response } from 'express';
 import Joi from 'joi';
 import { BaseController } from './base/BaseController';
 import { Book, Author, Category } from '../models';
+import { BookAuthor } from '../models/BookAuthor';
+import { BookCategory } from '../models/BookCategory';
 import { isbnService } from '../services/isbnService';
 import { validateIsbn } from '../utils/isbn';
+import { AuthenticatedRequest } from '../middleware/auth';
 
 interface CreateBookRequest {
   title: string;
@@ -501,6 +505,349 @@ export class BookController extends BaseController {
         201
       );
     });
+  }
+
+  // Express methods for authenticated users
+  static async getUserBooks(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+
+      const { page = 1, limit = 10, status, search } = req.query;
+      const offset = (Number(page) - 1) * Number(limit);
+
+      const whereClause: any = { userId: req.user.userId };
+      
+      if (status && ['in progress', 'paused', 'finished'].includes(status as string)) {
+        whereClause.status = status;
+      }
+
+      if (search) {
+        const { Op } = require('sequelize');
+        whereClause.title = {
+          [Op.iLike]: `%${search}%`
+        };
+      }
+
+      const { count, rows: books } = await Book.findAndCountAll({
+        where: whereClause,
+        include: [
+          { 
+            model: Author, 
+            as: 'authors',
+            through: { attributes: [] }
+          },
+          { 
+            model: Category, 
+            as: 'categories',
+            through: { attributes: [] }
+          }
+        ],
+        limit: Number(limit),
+        offset,
+        order: [['title', 'ASC']],
+      });
+
+      res.status(200).json({
+        books: books.map(book => book.toJSON()),
+        pagination: {
+          currentPage: Number(page),
+          totalPages: Math.ceil(count / Number(limit)),
+          totalItems: count,
+          itemsPerPage: Number(limit),
+        },
+      });
+    } catch (error) {
+      console.error('Error fetching user books:', error);
+      res.status(500).json({ 
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  static async getBookById(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+
+      const { id } = req.params;
+      const bookId = Number(id);
+
+      if (!bookId || isNaN(bookId)) {
+        res.status(400).json({ error: 'Invalid book ID' });
+        return;
+      }
+
+      const book = await Book.findOne({
+        where: { 
+          id: bookId, 
+          userId: req.user.userId 
+        },
+        include: [
+          { 
+            model: Author, 
+            as: 'authors',
+            through: { attributes: [] }
+          },
+          { 
+            model: Category, 
+            as: 'categories',
+            through: { attributes: [] }
+          }
+        ],
+      });
+
+      if (!book) {
+        res.status(404).json({ error: 'Book not found' });
+        return;
+      }
+
+      res.status(200).json(book.toJSON());
+    } catch (error) {
+      console.error('Error fetching book:', error);
+      res.status(500).json({ 
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  static async createBookForUser(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+
+      const { 
+        title, 
+        isbnCode, 
+        editionNumber, 
+        editionDate, 
+        status, 
+        notes,
+        authorIds = [],
+        categoryIds = []
+      } = req.body;
+
+      if (!title) {
+        res.status(400).json({ error: 'Title is required' });
+        return;
+      }
+
+      if (!isbnCode) {
+        res.status(400).json({ error: 'ISBN code is required' });
+        return;
+      }
+
+      if (!validateIsbn(isbnCode)) {
+        res.status(400).json({ error: 'Invalid ISBN format' });
+        return;
+      }
+
+      const existingBook = await Book.findOne({
+        where: { isbnCode, userId: req.user.userId }
+      });
+
+      if (existingBook) {
+        res.status(409).json({ error: 'Book with this ISBN already exists in your library' });
+        return;
+      }
+
+      const book = await Book.create({
+        title,
+        isbnCode,
+        editionNumber: editionNumber || undefined,
+        editionDate: editionDate ? new Date(editionDate) : undefined,
+        status: status || undefined,
+        notes: notes || undefined,
+        userId: req.user.userId,
+      });
+
+      if (authorIds.length > 0) {
+        for (const authorId of authorIds) {
+          await BookAuthor.create({
+            bookId: book.id,
+            authorId: authorId,
+          });
+        }
+      }
+
+      if (categoryIds.length > 0) {
+        for (const categoryId of categoryIds) {
+          await BookCategory.create({
+            bookId: book.id,
+            categoryId: categoryId,
+          });
+        }
+      }
+
+      const createdBook = await Book.findByPk(book.id, {
+        include: [
+          { 
+            model: Author, 
+            as: 'authors',
+            through: { attributes: [] }
+          },
+          { 
+            model: Category, 
+            as: 'categories',
+            through: { attributes: [] }
+          }
+        ],
+      });
+
+      res.status(201).json(createdBook?.toJSON());
+    } catch (error) {
+      console.error('Error creating book:', error);
+      res.status(500).json({ 
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  static async updateBookForUser(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+
+      const { id } = req.params;
+      const bookId = Number(id);
+
+      if (!bookId || isNaN(bookId)) {
+        res.status(400).json({ error: 'Invalid book ID' });
+        return;
+      }
+
+      const book = await Book.findOne({
+        where: { 
+          id: bookId, 
+          userId: req.user.userId 
+        }
+      });
+
+      if (!book) {
+        res.status(404).json({ error: 'Book not found' });
+        return;
+      }
+
+      const { 
+        title, 
+        editionNumber, 
+        editionDate, 
+        status, 
+        notes 
+      } = req.body;
+
+      await book.update({
+        ...(title && { title }),
+        ...(editionNumber !== undefined && { editionNumber }),
+        ...(editionDate !== undefined && { editionDate: editionDate ? new Date(editionDate) : null }),
+        ...(status !== undefined && { status }),
+        ...(notes !== undefined && { notes }),
+      });
+
+      const updatedBook = await Book.findByPk(book.id, {
+        include: [
+          { 
+            model: Author, 
+            as: 'authors',
+            through: { attributes: [] }
+          },
+          { 
+            model: Category, 
+            as: 'categories',
+            through: { attributes: [] }
+          }
+        ],
+      });
+
+      res.status(200).json(updatedBook?.toJSON());
+    } catch (error) {
+      console.error('Error updating book:', error);
+      res.status(500).json({ 
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  static async deleteBookForUser(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+
+      const { id } = req.params;
+      const bookId = Number(id);
+
+      if (!bookId || isNaN(bookId)) {
+        res.status(400).json({ error: 'Invalid book ID' });
+        return;
+      }
+
+      const book = await Book.findOne({
+        where: { 
+          id: bookId, 
+          userId: req.user.userId 
+        }
+      });
+
+      if (!book) {
+        res.status(404).json({ error: 'Book not found' });
+        return;
+      }
+
+      await book.destroy();
+
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting book:', error);
+      res.status(500).json({ 
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  static async searchByIsbnForUser(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+
+      const { isbn } = req.params;
+
+      if (!validateIsbn(isbn)) {
+        res.status(400).json({ error: 'Invalid ISBN format' });
+        return;
+      }
+
+      const bookData = await isbnService.lookupBook(isbn);
+
+      if (!bookData) {
+        res.status(404).json({ error: 'Book not found in external databases' });
+        return;
+      }
+
+      res.status(200).json(bookData);
+    } catch (error) {
+      console.error('Error searching book by ISBN:', error);
+      res.status(500).json({ 
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
   }
 }
 

@@ -9,6 +9,7 @@ import { Category } from './Category';
 import { Book } from './Book';
 import { BookAuthor } from './BookAuthor';
 import { BookCategory } from './BookCategory';
+import { User } from './User';
 
 export * from './interfaces/ModelInterfaces';
 export * from './base/BaseModel';
@@ -18,6 +19,7 @@ export * from './Category';
 export * from './Book';
 export * from './BookAuthor';
 export * from './BookCategory';
+export * from './User';
 
 export class ModelManager {
   private static sequelize: Sequelize | null = null;
@@ -31,6 +33,7 @@ export class ModelManager {
     ModelManager.sequelize = sequelize;
 
     // Initialize models in dependency order
+    User.initialize(sequelize);
     Author.initModel(sequelize);
     Category.initModel(sequelize);
     Book.initModel(sequelize);
@@ -38,6 +41,7 @@ export class ModelManager {
     BookCategory.initModel(sequelize);
 
     // Register models for associations
+    ModelAssociations.registerModel('User', User);
     ModelAssociations.registerModel('Author', Author);
     ModelAssociations.registerModel('Category', Category);
     ModelAssociations.registerModel('Book', Book);
@@ -80,6 +84,7 @@ export class ModelManager {
 
   static getModels() {
     return {
+      User,
       Author,
       Category,
       Book,

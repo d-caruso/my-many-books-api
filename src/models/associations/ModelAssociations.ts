@@ -5,6 +5,7 @@
 import { Sequelize } from 'sequelize';
 
 export interface ModelRegistry {
+  User: any;
   Book: any;
   Author: any;
   Category: any;
@@ -32,11 +33,26 @@ export class ModelAssociations {
   }
 
   static defineAssociations(): void {
-    const { Book, Author, Category, BookAuthor, BookCategory } = ModelAssociations.models;
+    const { User, Book, Author, Category, BookAuthor, BookCategory } = ModelAssociations.models;
 
-    if (!Book || !Author || !Category || !BookAuthor || !BookCategory) {
+    if (!User || !Book || !Author || !Category || !BookAuthor || !BookCategory) {
       throw new Error('All models must be registered before defining associations');
     }
+
+    // User - Book relationship
+    User.hasMany(Book, {
+      foreignKey: 'user_id',
+      as: 'books',
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+    });
+
+    Book.belongsTo(User, {
+      foreignKey: 'user_id',
+      as: 'user',
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+    });
 
     // Book - Author many-to-many relationship
     Book.belongsToMany(Author, {

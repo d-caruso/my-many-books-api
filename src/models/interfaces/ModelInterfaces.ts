@@ -29,6 +29,7 @@ export interface BookAttributes extends IdBaseModelAttributes {
   editionDate?: Date | undefined;
   status?: BookStatus | undefined;
   notes?: string | undefined;
+  userId?: number | undefined;
 }
 
 export interface BookCreationAttributes extends Omit<BookAttributes, 'id' | 'creationDate' | 'updateDate'> {}
@@ -86,4 +87,25 @@ export interface UpdateBookWithAssociations {
   book: BookUpdateAttributes;
   authors?: AuthorCreationAttributes[];
   categories?: CategoryCreationAttributes[];
+}
+
+// User interfaces
+export interface UserAttributes extends IdBaseModelAttributes {
+  email: string;
+  name: string;
+  surname: string;
+  isActive: boolean;
+}
+
+export interface UserCreationAttributes extends Omit<UserAttributes, 'id' | 'creationDate' | 'updateDate'> {}
+
+export interface UserUpdateAttributes extends Omit<Partial<UserAttributes>, 'id' | 'creationDate'> {}
+
+// Authentication interface for middleware context
+export interface AuthUser {
+  userId: number;          // Database user ID (primary key)
+  email: string;           // For logging/debugging
+  provider: string;        // Auth provider used
+  providerUserId?: string; // External auth system ID
+  isNewUser?: boolean;     // Helpful for onboarding flows
 }
