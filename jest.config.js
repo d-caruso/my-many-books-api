@@ -21,6 +21,7 @@ module.exports = {
     'html'
   ],
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
+  testTimeout: 30000, // 30 seconds for integration tests
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
