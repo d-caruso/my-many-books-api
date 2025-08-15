@@ -1,8 +1,41 @@
-# My Many Books - API Backend
+# 📦 MOVED TO MONOREPO
 
-> **⚠️ MIGRATION NOTICE**: This repository has been migrated to a monorepo structure. Please use the new repository: [my-many-books](https://github.com/d-caruso/my-many-books)
-> 
-> This repository is now in maintenance mode and will not receive new updates.
+This project has been consolidated into a monorepo for better code sharing and development experience.
+
+## 🔗 New Location
+**👉 [my-many-books](https://github.com/d-caruso/my-many-books)**
+
+### What moved where:
+- **API code**: `apps/api/`
+- **Web app code**: `apps/web-app/`
+- **Shared code**: `libs/`
+
+### For Contributors:
+```bash
+# Old way
+git clone https://github.com/d-caruso/my-many-books-api.git
+git clone https://github.com/d-caruso/my-many-books-web.git
+
+# New way
+git clone https://github.com/d-caruso/my-many-books.git
+cd my-many-books
+nx serve api      # Start API
+nx serve web-app  # Start web app
+```
+
+### Benefits:
+- 🔄 Easier dependency management
+- 🔧 Shared tooling and configs
+- 🚀 Atomic commits across frontend/backend
+- 📱 Ready for mobile app addition
+
+---
+
+## Legacy Documentation
+
+**Note**: This repository is now in maintenance mode and will not receive new updates.
+
+### My Many Books - API Backend
 
 A serverless API backend for managing personal book collections with ISBN scanning, reading progress tracking, and automated book information retrieval.
 
